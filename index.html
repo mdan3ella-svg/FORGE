@@ -31,7 +31,7 @@
         ::-webkit-scrollbar-track { background: #fdf5e6; }
         ::-webkit-scrollbar-thumb { background: #3e2723; border-radius: 2px; }
         body { overflow: hidden; background-color: #fdf5e6; }
-        .glass-panel { background: rgba(255, 255, 255, 0.4); backdrop-filter: blur(8px); border: 2px solid #3e2723; }
+        .glass-panel { background: rgba(255, 255, 255, 0.6); backdrop-filter: blur(8px); border: 2px solid #3e2723; }
     </style>
 </head>
 <body>
@@ -46,7 +46,7 @@
         import { 
             Box, Layers, PenTool, Trash2, Download, MousePointer, Undo,
             Maximize, Settings, Save, ArrowUpCircle, Axis3d, Ruler, 
-            DollarSign, FileText, ScanLine, Upload, Zap, Activity, Image as ImageIcon, FileImage
+            DollarSign, FileText, ScanLine, Upload, Zap, Activity, Image as ImageIcon, FileImage, Palette, Link as LinkIcon
         } from 'lucide-react';
         import * as THREE from 'three';
 
@@ -60,34 +60,47 @@
             guide: '#2962ff'
         };
 
+        const MATERIAL_LIBRARY = {
+            'Concrete': '#9e9e9e',
+            'Concrete Reinf.': '#bdbdbd',
+            'Steel': '#607d8b',
+            'Steel S355': '#546e7a',
+            'Wood': '#d7ccc8',
+            'Composite': '#ffcc80',
+            'Brick': '#ffab91',
+            'Glass': '#b3e5fc',
+            'Site/Earth': '#a5d6a7',
+            'Generic': '#eeeeee'
+        };
+
         const ELEMENT_DEFS = {
             WALL: { 
-                type: 'WALL', label: 'Wall System', layer: 'Architecture',
+                type: 'WALL', label: 'Wall System', layer: 'Architecture', prefix: 'WL',
                 defaultParams: { height: 3, thickness: 0.2, length: 1.0 }, 
                 defaultSpecs: { material: 'Concrete Reinf.', costPerUnit: 250, fireRating: '2HR', omni: '23-13 31 17' },
-                color: '#d7ccc8'
+                color: '#bdbdbd'
             },
             COLUMN: { 
-                type: 'COLUMN', label: 'Struct Column', layer: 'Structure',
+                type: 'COLUMN', label: 'Struct Column', layer: 'Structure', prefix: 'COL',
                 defaultParams: { height: 3, width: 0.4, depth: 0.4 },
                 defaultSpecs: { material: 'Steel S355', costPerUnit: 450, fireRating: '3HR', omni: '23-13 23 11' },
-                color: '#8d6e63'
+                color: '#546e7a'
             },
             FURNITURE: {
-                type: 'FURNITURE', label: 'Workstation', layer: 'Interior',
+                type: 'FURNITURE', label: 'Workstation', layer: 'Interior', prefix: 'FUR',
                 defaultParams: { height: 0.75, width: 1.6, depth: 0.8 },
                 defaultSpecs: { material: 'Composite', costPerUnit: 800, fireRating: 'N/A', omni: '23-40 20 00' },
                 color: '#ffcc80'
             },
             TOPOGRAPHY: {
-                type: 'TOPOGRAPHY', label: 'Height Map Terrain', layer: 'Site',
-                defaultParams: { width: 20, depth: 20, height: 5, segments: 128 }, // Height = Max Displacement
+                type: 'TOPOGRAPHY', label: 'Height Map Terrain', layer: 'Site', prefix: 'TER',
+                defaultParams: { width: 20, depth: 20, height: 5, segments: 128 }, 
                 defaultSpecs: { material: 'Site/Earth', costPerUnit: 45, fireRating: 'N/A', omni: '31-00 00 00' },
                 color: '#a5d6a7'
             }
         };
 
-        const SVG_DEMO = `<svg width="200" height="200" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">\n  <line x1="2" y1="2" x2="18" y2="2" stroke="black" />\n  <circle cx="2" cy="18" r="0.5" fill="red" />\n  <rect x="8" y="8" width="4" height="2" fill="blue" />\n</svg>`;
+        const SVG_DEMO = `<svg width="200" height="200" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">\n  <line id="Ext-Wall-01" x1="2" y1="2" x2="18" y2="2" stroke="#5d4037" stroke-width="2"/>\n  <circle id="Col-A1" cx="2" cy="18" r="0.5" fill="#d32f2f" />\n  <rect id="Desk-01" x="8" y="8" width="4" height="2" fill="#1976d2" />\n</svg>`;
 
         // --- 2. ENGINE COMPONENTS ---
 
@@ -127,6 +140,9 @@
 
             const showGizmo = isSelected && ['translate', 'rotate'].includes(mode);
 
+            // Determine color: Selection > Override > Material Library > Default
+            const displayColor = isSelected ? THEME.selected : (element.color || MATERIAL_LIBRARY[element.specs.material] || '#cccccc');
+
             return (
                 <group position={element.position} rotation={element.rotation}>
                     <group
@@ -140,10 +156,10 @@
                         ) : (
                             <mesh>
                                 <boxGeometry args={dims} />
-                                <meshStandardMaterial color={isSelected ? THEME.selected : element.color} roughness={0.7} metalness={0.2} />
+                                <meshStandardMaterial color={displayColor} roughness={0.6} metalness={0.1} />
                                 <lineSegments>
                                     <edgesGeometry args={[new THREE.BoxGeometry(...dims)]} />
-                                    <lineBasicMaterial color={THEME.line} linewidth={2} toneMapped={false} />
+                                    <lineBasicMaterial color={THEME.line} linewidth={1} transparent opacity={0.3} />
                                 </lineSegments>
                             </mesh>
                         )}
@@ -153,7 +169,7 @@
                         <Html position={[0, dims[1]/2 + 0.5, 0]} center>
                             <div className="flex flex-col items-center pointer-events-none z-50">
                                 <div className="bg-[#3e2723] text-white text-[10px] font-mono px-2 py-0.5 rounded shadow-lg whitespace-nowrap">
-                                    {element.specs.omni} | {element.specs.material}
+                                    {element.humanId} | {element.specs.material}
                                 </div>
                             </div>
                         </Html>
@@ -215,7 +231,7 @@
                     let v = 0;
                     const p = el.params;
                     if (el.type === 'WALL') v = p.length * p.height * p.thickness;
-                    else if (el.type === 'TOPOGRAPHY') v = p.width * p.depth * (p.height * 0.5); // Approx volume
+                    else if (el.type === 'TOPOGRAPHY') v = p.width * p.depth * (p.height * 0.5); 
                     else v = p.width * p.height * p.depth;
                     
                     let c = 0;
@@ -228,34 +244,36 @@
                 return { vol, cost };
             }, [elements]);
 
+            // --- HELPERS ---
+            const generateID = (type, count) => {
+                const def = ELEMENT_DEFS[type] || { prefix: 'OBJ' };
+                return `${def.prefix}-${(count + 1).toString().padStart(3, '0')}`;
+            };
+
             // --- ACTIONS ---
 
             const handleFileSelect = (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
-
                 const reader = new FileReader();
                 
-                // SVG (Vector Extrude)
                 if (file.type.includes('svg')) {
-                    reader.onload = (ev) => {
-                        setSvgInput(ev.target.result);
-                        // Auto-trigger parse could happen here
-                    };
+                    reader.onload = (ev) => { setSvgInput(ev.target.result); };
                     reader.readAsText(file);
                 } 
-                // IMAGE (Height Map Extrude)
                 else if (file.type.includes('image')) {
                     reader.onload = (ev) => {
                         const dataUrl = ev.target.result;
                         const def = ELEMENT_DEFS.TOPOGRAPHY;
                         const newEl = {
-                            id: crypto.randomUUID(), type: def.type, label: `${def.label} (${file.name})`, color: def.color,
+                            id: crypto.randomUUID(), 
+                            humanId: generateID('TOPOGRAPHY', elements.length),
+                            type: def.type, label: `${def.label} (${file.name})`, color: def.color,
                             params: { ...def.defaultParams },
                             specs: { ...def.defaultSpecs },
-                            data: { textureUrl: dataUrl }, // Store image data
-                            position: [0, 0, 0], // Ground level
-                            rotation: [0, 0, 0]
+                            data: { textureUrl: dataUrl }, 
+                            position: [0, 0, 0], rotation: [0, 0, 0],
+                            parentId: null
                         };
                         setElements(prev => [...prev, newEl]);
                         setShowImport(false);
@@ -268,13 +286,20 @@
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(svgInput, "image/svg+xml");
                 const newEls = [];
+                let count = elements.length;
                 
+                // Helper to extract color from SVG style
+                const getSvgColor = (el, fallback) => {
+                    return el.getAttribute('stroke') || el.getAttribute('fill') || fallback;
+                }
+
                 // 1. Lines -> Walls
                 doc.querySelectorAll('line').forEach(line => {
                     const x1 = parseFloat(line.getAttribute('x1'));
                     const y1 = parseFloat(line.getAttribute('y1'));
                     const x2 = parseFloat(line.getAttribute('x2'));
                     const y2 = parseFloat(line.getAttribute('y2'));
+                    const svgId = line.getAttribute('id');
                     
                     if(isNaN(x1)) return;
 
@@ -289,11 +314,15 @@
 
                     const def = ELEMENT_DEFS.WALL;
                     newEls.push({
-                        id: crypto.randomUUID(), type: def.type, label: def.label, color: def.color,
+                        id: crypto.randomUUID(), 
+                        humanId: svgId || generateID(def.type, count++),
+                        type: def.type, label: def.label, 
+                        color: getSvgColor(line, def.color),
                         params: { ...def.defaultParams, length: len },
                         specs: { ...def.defaultSpecs },
                         position: [offsetX, def.defaultParams.height/2, offsetZ],
-                        rotation: [0, angle, 0]
+                        rotation: [0, angle, 0],
+                        parentId: null
                     });
                 });
 
@@ -301,13 +330,18 @@
                 doc.querySelectorAll('circle').forEach(circ => {
                     const cx = parseFloat(circ.getAttribute('cx')) - 10;
                     const cy = parseFloat(circ.getAttribute('cy')) - 10;
+                    const svgId = circ.getAttribute('id');
                     const def = ELEMENT_DEFS.COLUMN;
                     newEls.push({
-                        id: crypto.randomUUID(), type: def.type, label: def.label, color: def.color,
+                        id: crypto.randomUUID(), 
+                        humanId: svgId || generateID(def.type, count++),
+                        type: def.type, label: def.label, 
+                        color: getSvgColor(circ, def.color),
                         params: { ...def.defaultParams },
                         specs: { ...def.defaultSpecs },
                         position: [cx, def.defaultParams.height/2, cy],
-                        rotation: [0, 0, 0]
+                        rotation: [0, 0, 0],
+                        parentId: null
                     });
                 });
 
@@ -317,15 +351,22 @@
                     const y = parseFloat(rect.getAttribute('y'));
                     const w = parseFloat(rect.getAttribute('width'));
                     const h = parseFloat(rect.getAttribute('height'));
+                    const svgId = rect.getAttribute('id');
+                    
                     const midX = x + w/2 - 10;
                     const midZ = y + h/2 - 10;
+                    
                     const def = ELEMENT_DEFS.FURNITURE;
                     newEls.push({
-                        id: crypto.randomUUID(), type: def.type, label: def.label, color: def.color,
+                        id: crypto.randomUUID(), 
+                        humanId: svgId || generateID(def.type, count++),
+                        type: def.type, label: def.label, 
+                        color: getSvgColor(rect, def.color),
                         params: { ...def.defaultParams, width: w, depth: h },
                         specs: { ...def.defaultSpecs },
                         position: [midX, def.defaultParams.height/2, midZ],
-                        rotation: [0, 0, 0]
+                        rotation: [0, 0, 0],
+                        parentId: null
                     });
                 });
 
@@ -333,20 +374,21 @@
                 setShowImport(false);
             };
 
-            // Drawing Handlers
             const handleDrawClick = (pt) => {
+                const count = elements.length;
                 if (drawState.type === 'COLUMN' || drawState.type === 'FURNITURE') {
-                    // Point Object
                     const def = ELEMENT_DEFS[drawState.type];
                     const el = {
-                        id: crypto.randomUUID(), type: def.type, label: def.label, color: def.color,
+                        id: crypto.randomUUID(), 
+                        humanId: generateID(def.type, count),
+                        type: def.type, label: def.label, color: def.color,
                         params: { ...def.defaultParams }, specs: { ...def.defaultSpecs },
-                        position: [pt.x, def.defaultParams.height/2, pt.z], rotation: [0,0,0]
+                        position: [pt.x, def.defaultParams.height/2, pt.z], rotation: [0,0,0],
+                        parentId: null
                     };
                     setElements(prev => [...prev, el]);
                     setSelectedId(el.id);
                 } else {
-                    // Vector Object (Wall)
                     if (!drawState.start) {
                         setDrawState(prev => ({ ...prev, active: true, start: pt, curr: pt }));
                     } else {
@@ -361,15 +403,17 @@
                             const midZ = (start.z + end.z)/2;
                             const def = ELEMENT_DEFS[drawState.type];
                             const el = {
-                                id: crypto.randomUUID(), type: def.type, label: def.label, color: def.color,
+                                id: crypto.randomUUID(), 
+                                humanId: generateID(def.type, count),
+                                type: def.type, label: def.label, color: def.color,
                                 params: { ...def.defaultParams, length: len },
                                 specs: { ...def.defaultSpecs },
                                 position: [midX, def.defaultParams.height/2, midZ],
-                                rotation: [0, angle, 0]
+                                rotation: [0, angle, 0],
+                                parentId: null
                             };
                             setElements(prev => [...prev, el]);
                             setSelectedId(el.id);
-                            // Chain
                             setDrawState(prev => ({ ...prev, start: end, curr: end }));
                         }
                     }
@@ -429,10 +473,42 @@
                 );
             };
 
+            // Property Updaters
+            const updateParam = (key, value) => {
+                if (!selectedId) return;
+                setElements(prev => prev.map(el => el.id === selectedId ? { ...el, params: { ...el.params, [key]: parseFloat(value) || 0.1 } } : el));
+            };
+
+            const updateSpec = (key, value) => {
+                if (!selectedId) return;
+                setElements(prev => prev.map(el => {
+                    if (el.id === selectedId) {
+                        const newSpecs = { ...el.specs, [key]: value };
+                        // Intelligent Color Update: If material changes, try to update color
+                        let newColor = el.color;
+                        if (key === 'material' && MATERIAL_LIBRARY[value]) {
+                            newColor = MATERIAL_LIBRARY[value];
+                        }
+                        return { ...el, specs: newSpecs, color: newColor };
+                    }
+                    return el;
+                }));
+            };
+
+            const updateColor = (value) => {
+                if (!selectedId) return;
+                setElements(prev => prev.map(el => el.id === selectedId ? { ...el, color: value } : el));
+            };
+
+            const updateParent = (val) => {
+                if (!selectedId) return;
+                setElements(prev => prev.map(el => el.id === selectedId ? { ...el, parentId: val } : el));
+            }
+
             return (
                 <div className="w-full h-screen bg-[#fdf5e6] text-[#3e2723] font-mono flex flex-col overflow-hidden relative select-none">
                     
-                    {/* TOP HEADER & HUD */}
+                    {/* TOP HEADER */}
                     <div className="absolute top-4 left-4 right-4 z-10 flex justify-between pointer-events-none">
                         <div className="flex gap-2 pointer-events-auto">
                             <button onClick={() => setCameraView(v => v === '2D' ? '3D' : '2D')} className="glass-panel px-4 py-2 rounded-full font-bold shadow-lg hover:bg-white/50 transition flex items-center gap-2">
@@ -474,14 +550,8 @@
                                     <div className="p-4 border border-[#3e2723]/20 rounded-xl bg-white/30 text-xs">
                                         <strong className="block mb-1">MODE 1: VECTOR (.SVG)</strong>
                                         <ul className="list-disc pl-4 opacity-70 mb-2">
-                                            <li>Black Lines = Walls</li>
-                                            <li>Red Circles = Columns</li>
-                                            <li>Blue Rects = Furniture</li>
-                                        </ul>
-                                        <strong className="block mb-1">MODE 2: HEIGHT MAP (.JPG)</strong>
-                                        <ul className="list-disc pl-4 opacity-70">
-                                            <li>Brightness = Elevation</li>
-                                            <li>Auto-generates Terrain</li>
+                                            <li>Line Stroke Color = 3D Color</li>
+                                            <li>SVG ID = Element ID</li>
                                         </ul>
                                     </div>
                                 </div>
@@ -516,15 +586,6 @@
 
                         {/* CANVAS */}
                         <div className="flex-1 glass-panel rounded-3xl overflow-hidden relative shadow-inner bg-[#fdf6e3]">
-                            <div className="absolute top-4 left-4 z-10 text-[10px] font-bold text-[#3e2723] bg-white/50 px-2 py-1 rounded backdrop-blur">
-                                {mode === 'draw' ? 'INSTRUCTION: CLICK START POINT -> CLICK END POINT' : 'INSTRUCTION: SELECT OBJECT TO EDIT'}
-                            </div>
-                            <div className="absolute border-2 border-[#3e2723] rounded-lg px-6 py-2 bg-[#fdf5e6] shadow-[4px_4px_0px_#3e2723] flex flex-col items-center top-4 left-1/2 -translate-x-1/2 z-10">
-                                <h1 className="text-2xl font-black tracking-widest leading-none text-center">FORGE</h1>
-                                <div className="text-[10px] font-bold text-center tracking-[0.3em] mb-1">SIM-CAL AUDITOR</div>
-                                <div className="text-[8px] font-mono opacity-60 tracking-widest">REALTIME COST ANALYSIS</div>
-                            </div>
-
                             <Canvas shadows dpr={[1, 2]}>
                                 <color attach="background" args={['#fdf6e3']} />
                                 {cameraView === '3D' ? <PerspectiveCamera makeDefault position={[10, 15, 10]} fov={45} /> : <OrthographicCamera makeDefault position={[0, 50, 0]} zoom={30} />}
@@ -543,49 +604,65 @@
                                     <div className="space-y-4">
                                         <div className="bg-white/50 p-2 rounded border border-[#3e2723]/20">
                                             <div className="text-xs font-bold uppercase tracking-wider">{selectedElement.label}</div>
-                                            <div className="text-[10px] opacity-60 font-mono">{selectedElement.id.split('-')[0]}...</div>
+                                            <div className="text-[10px] opacity-60 font-mono tracking-tighter">{selectedElement.humanId}</div>
+                                            <div className="text-[9px] opacity-40 font-mono">{selectedElement.id.split('-')[0]}...</div>
                                         </div>
 
                                         <Group title="SPECIFICATION" icon={FileText}>
                                             <Field label="OMNICLASS" value={selectedElement.specs.omni} readOnly />
-                                            <Field label="FIRE RATING" value={selectedElement.specs.fireRating} readOnly />
-                                            <Field label="MATERIAL" value={selectedElement.specs.material} />
+                                            
+                                            {/* Material Dropdown with Color Logic */}
+                                            <div className="flex justify-between items-center text-xs">
+                                                <span className="font-bold opacity-80">MATERIAL</span>
+                                                <select 
+                                                    value={selectedElement.specs.material} 
+                                                    onChange={(e) => updateSpec('material', e.target.value)}
+                                                    className="w-24 bg-transparent border-b border-[#3e2723] text-right focus:outline-none font-mono text-[10px]"
+                                                >
+                                                    {Object.keys(MATERIAL_LIBRARY).map(mat => (
+                                                        <option key={mat} value={mat}>{mat}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+
+                                            <div className="flex justify-between items-center text-xs">
+                                                <span className="font-bold opacity-80">COLOR CODE</span>
+                                                <div className="flex items-center gap-2">
+                                                    <input type="color" value={selectedElement.color || '#cccccc'} onChange={(e) => updateColor(e.target.value)} className="w-4 h-4 rounded border-none cursor-pointer" />
+                                                    <span className="font-mono text-[9px] opacity-60">{selectedElement.color}</span>
+                                                </div>
+                                            </div>
+                                        </Group>
+
+                                        <Group title="RELATIONS" icon={LinkIcon}>
+                                            <div className="flex justify-between items-center text-xs">
+                                                <span className="font-bold opacity-80">PARENT ID</span>
+                                                <input 
+                                                    type="text" 
+                                                    value={selectedElement.parentId || ''} 
+                                                    onChange={e => updateParent(e.target.value)} 
+                                                    placeholder="None"
+                                                    className="w-24 bg-transparent border-b border-[#3e2723] text-right focus:outline-none font-mono text-[10px]"
+                                                />
+                                            </div>
+                                            <div className="text-[9px] opacity-50 mt-1 italic text-right">
+                                                Link to System/Host
+                                            </div>
                                         </Group>
 
                                         <Group title="DIMENSIONS" icon={Ruler}>
                                             {selectedElement.type === 'WALL' ? (
                                                 <>
-                                                    <Field label="LENGTH (m)" value={selectedElement.params.length.toFixed(2)} onChange={v => {
-                                                        const els = elements.map(e => e.id === selectedId ? {...e, params: {...e.params, length: parseFloat(v)}} : e);
-                                                        setElements(els);
-                                                    }}/>
-                                                    <Field label="HEIGHT (m)" value={selectedElement.params.height} onChange={v => {
-                                                        const els = elements.map(e => e.id === selectedId ? {...e, params: {...e.params, height: parseFloat(v)}} : e);
-                                                        setElements(els);
-                                                    }}/>
+                                                    <Field label="LENGTH (m)" value={selectedElement.params.length.toFixed(2)} onChange={v => updateParam('length', v)}/>
+                                                    <Field label="HEIGHT (m)" value={selectedElement.params.height} onChange={v => updateParam('height', v)}/>
                                                 </>
                                             ) : selectedElement.type === 'TOPOGRAPHY' ? (
                                                 <>
-                                                    <Field label="WIDTH (m)" value={selectedElement.params.width} onChange={v => {
-                                                        const els = elements.map(e => e.id === selectedId ? {...e, params: {...e.params, width: parseFloat(v)}} : e);
-                                                        setElements(els);
-                                                    }}/>
-                                                    <Field label="DEPTH (m)" value={selectedElement.params.depth} onChange={v => {
-                                                        const els = elements.map(e => e.id === selectedId ? {...e, params: {...e.params, depth: parseFloat(v)}} : e);
-                                                        setElements(els);
-                                                    }}/>
-                                                    <Field label="MAX HEIGHT" value={selectedElement.params.height} onChange={v => {
-                                                        const els = elements.map(e => e.id === selectedId ? {...e, params: {...e.params, height: parseFloat(v)}} : e);
-                                                        setElements(els);
-                                                    }}/>
+                                                    <Field label="WIDTH (m)" value={selectedElement.params.width} onChange={v => updateParam('width', v)}/>
+                                                    <Field label="HEIGHT (m)" value={selectedElement.params.height} onChange={v => updateParam('height', v)}/>
                                                 </>
                                             ) : (
-                                                <>
-                                                    <Field label="WIDTH (m)" value={selectedElement.params.width} onChange={v => {
-                                                        const els = elements.map(e => e.id === selectedId ? {...e, params: {...e.params, width: parseFloat(v)}} : e);
-                                                        setElements(els);
-                                                    }}/>
-                                                </>
+                                                <Field label="WIDTH (m)" value={selectedElement.params.width} onChange={v => updateParam('width', v)}/>
                                             )}
                                         </Group>
 
