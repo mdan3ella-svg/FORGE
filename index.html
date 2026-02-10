@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FORGE | SIM-CAL AUDITOR</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Import Map -->
+    <script type="importmap">
+        {
+            "imports": {
+                "react": "https://esm.sh/react@18.2.0",
+                "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+                "three": "https://esm.sh/three@0.160.0",
+                "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.16?external=react,react-dom,three",
+                "@react-three/drei": "https://esm.sh/@react-three/drei@9.99.0?external=react,react-dom,three,@react-three/fiber",
+                "lucide-react": "https://esm.sh/lucide-react@0.344.0?external=react",
+                "uuid": "https://esm.sh/uuid@9.0.1"
+            }
+        }
+    </script>
+
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: #fdf5e6; }
+        ::-webkit-scrollbar-thumb { background: #3e2723; border-radius: 2px; }
+        body { overflow: hidden; background-color: #fdf5e6; }
+        .glass-panel { background: rgba(255, 255, 255, 0.4); backdrop-filter: blur(8px); border: 2px solid #3e2723; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <!-- Main Application Script -->
+    <script type="text/babel" data-type="module">
+        import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { Canvas, useThree, useLoader } from '@react-three/fiber';
+        import { OrbitControls, Grid, Html, useCursor, TransformControls, OrthographicCamera, PerspectiveCamera } from '@react-three/drei';
+        import { 
+            Box, Layers, PenTool, Trash2, Download, MousePointer, Undo,
+            Maximize, Settings, Save, ArrowUpCircle, Axis3d, Ruler, 
+            DollarSign, FileText, ScanLine, Upload, Zap, Activity, Image as ImageIcon, FileImage
+        } from 'lucide-react';
+        import * as THREE from 'three';
+
+        // --- 1. CONFIGURATION ---
+
+        const THEME = {
+            bg: '#fdf5e6',
+            line: '#3e2723',
+            selected: '#ff6d00',
+            grid: '#a1887f',
+            guide: '#2962ff'
+        };
+
+        const ELEMENT_DEFS = {
+            WALL: { 
+                type: 'WALL', label: 'Wall System', layer: 'Architecture',
+                defaultParams: { height: 3, thickness: 0.2, length: 1.0 }, 
+                defaultSpecs: { material: 'Concrete Reinf.', costPerUnit: 250, fireRating: '2HR', omni: '23-13 31 17' },
+                color: '#d7ccc8'
+            },
+            COLUMN: { 
+                type: 'COLUMN', label: 'Struct Column', layer: 'Structure',
+                defaultParams: { height: 3, width: 0.4, depth: 0.4 },
+                defaultSpecs: { material: 'Steel S355', costPerUnit: 450, fireRating: '3HR', omni: '23-13 23 11' },
+                color: '#8d6e63'
+            },
+            FURNITURE: {
+                type: 'FURNITURE', label: 'Workstation', layer: 'Interior',
+                defaultParams: { height: 0.75, width: 1.6, depth: 0.8 },
+                defaultSpecs: { material: 'Composite', costPerUnit: 800, fireRating: 'N/A', omni: '23-40 20 00' },
+                color: '#ffcc80'
+            },
+            TOPOGRAPHY: {
+                type: 'TOPOGRAPHY', label: 'Height Map Terrain', layer: 'Site',
+                defaultParams: { width: 20, depth: 20, height: 5, segments: 128 }, // Height = Max Displacement
+                defaultSpecs: { material: 'Site/Earth', costPerUnit: 45, fireRating: 'N/A', omni: '31-00 00 00' },
+                color: '#a5d6a7'
+            }
+        };
+
+        const SVG_DEMO = `<svg width="200" height="200" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">\n  <line x1="2" y1="2" x2="18" y2="2" stroke="black" />\n  <circle cx="2" cy="18" r="0.5" fill="red" />\n  <rect x="8" y="8" width="4" height="2" fill="blue" />\n</svg>`;
+
+        // --- 2. ENGINE COMPONENTS ---
+
+        const TopographyMesh = ({ element, dims, isSelected }) => {
+            const texture = useMemo(() => {
+                if (!element.data?.textureUrl) return null;
+                return new THREE.TextureLoader().load(element.data.textureUrl);
+            }, [element.data?.textureUrl]);
+
+            return (
+                <mesh rotation={[-Math.PI/2, 0, 0]}>
+                    <planeGeometry args={[dims[0], dims[2], element.params.segments || 64, element.params.segments || 64]} />
+                    <meshStandardMaterial 
+                        color={element.color} 
+                        displacementMap={texture}
+                        displacementScale={dims[1]} 
+                        wireframe={false}
+                        roughness={0.9}
+                        side={THREE.DoubleSide}
+                    />
+                    {isSelected && <lineSegments><wireframeGeometry args={[new THREE.PlaneGeometry(dims[0], dims[2], 10, 10)]} /><lineBasicMaterial color={THEME.selected} /></lineSegments>}
+                </mesh>
+            );
+        };
+
+        const BimElement = ({ element, isSelected, onSelect, mode, onTransformEnd }) => {
+            const [hovered, setHover] = useState(false);
+            const [mesh, setMesh] = useState(null);
+            useCursor(hovered, 'pointer', 'auto');
+
+            const dims = useMemo(() => {
+                const p = element.params;
+                if (element.type === 'WALL') return [Math.max(0.1, p.length), Math.max(0.1, p.height), Math.max(0.05, p.thickness)];
+                if (element.type === 'TOPOGRAPHY') return [Math.max(1, p.width), Math.max(0.1, p.height), Math.max(1, p.depth)];
+                return [Math.max(0.1, p.width), Math.max(0.1, p.height), Math.max(0.1, p.depth)];
+            }, [element.params, element.type]);
+
+            const showGizmo = isSelected && ['translate', 'rotate'].includes(mode);
+
+            return (
+                <group position={element.position} rotation={element.rotation}>
+                    <group
+                        ref={setMesh}
+                        onClick={(e) => { e.stopPropagation(); onSelect(element.id); }}
+                        onPointerOver={() => setHover(true)}
+                        onPointerOut={() => setHover(false)}
+                    >
+                        {element.type === 'TOPOGRAPHY' ? (
+                            <TopographyMesh element={element} dims={dims} isSelected={isSelected} />
+                        ) : (
+                            <mesh>
+                                <boxGeometry args={dims} />
+                                <meshStandardMaterial color={isSelected ? THEME.selected : element.color} roughness={0.7} metalness={0.2} />
+                                <lineSegments>
+                                    <edgesGeometry args={[new THREE.BoxGeometry(...dims)]} />
+                                    <lineBasicMaterial color={THEME.line} linewidth={2} toneMapped={false} />
+                                </lineSegments>
+                            </mesh>
+                        )}
+                    </group>
+
+                    {isSelected && (
+                        <Html position={[0, dims[1]/2 + 0.5, 0]} center>
+                            <div className="flex flex-col items-center pointer-events-none z-50">
+                                <div className="bg-[#3e2723] text-white text-[10px] font-mono px-2 py-0.5 rounded shadow-lg whitespace-nowrap">
+                                    {element.specs.omni} | {element.specs.material}
+                                </div>
+                            </div>
+                        </Html>
+                    )}
+                    {showGizmo && mesh && (
+                        <TransformControls 
+                            object={mesh} mode={mode === 'rotate' ? 'rotate' : 'translate'} size={0.8}
+                            onMouseUp={(e) => { if (e?.target?.object) onTransformEnd(element.id, e.target.object); }}
+                        />
+                    )}
+                </group>
+            );
+        };
+
+        const DrawGhost = ({ start, end, type }) => {
+            if (!start || !end || !type || type === 'TOPOGRAPHY') return null;
+            const dx = end.x - start.x;
+            const dz = end.z - start.z;
+            const len = Math.sqrt(dx*dx + dz*dz);
+            if (len < 0.1) return null;
+            
+            const angle = Math.atan2(dx, dz);
+            const midX = (start.x + end.x)/2;
+            const midZ = (start.z + end.z)/2;
+            const h = ELEMENT_DEFS[type].defaultParams.height;
+            const t = ELEMENT_DEFS[type].defaultParams.thickness || 0.2;
+
+            return (
+                <group position={[midX, h/2, midZ]} rotation={[0, angle, 0]}>
+                    <mesh>
+                        <boxGeometry args={[t, h, len]} />
+                        <meshBasicMaterial color={THEME.guide} wireframe opacity={0.4} transparent />
+                    </mesh>
+                    <Html position={[0, h/2 + 0.2, 0]} center>
+                        <div className="bg-blue-600 text-white text-xs px-1 rounded font-mono">{len.toFixed(2)}m</div>
+                    </Html>
+                </group>
+            );
+        };
+
+        // --- 3. LOGIC & STATE ---
+
+        function ForgeBimApp() {
+            const [elements, setElements] = useState([]);
+            const [selectedId, setSelectedId] = useState(null);
+            const [mode, setMode] = useState('select'); 
+            const [cameraView, setCameraView] = useState('3D');
+            const [drawState, setDrawState] = useState({ active: false, start: null, curr: null, type: null });
+            const [showImport, setShowImport] = useState(false);
+            const [svgInput, setSvgInput] = useState(SVG_DEMO);
+            const fileInputRef = useRef(null);
+
+            const selectedElement = useMemo(() => elements.find(e => e.id === selectedId), [elements, selectedId]);
+
+            // --- ANALYSIS ---
+            const stats = useMemo(() => {
+                let vol = 0, cost = 0;
+                elements.forEach(el => {
+                    let v = 0;
+                    const p = el.params;
+                    if (el.type === 'WALL') v = p.length * p.height * p.thickness;
+                    else if (el.type === 'TOPOGRAPHY') v = p.width * p.depth * (p.height * 0.5); // Approx volume
+                    else v = p.width * p.height * p.depth;
+                    
+                    let c = 0;
+                    if (el.type === 'FURNITURE') c = el.specs.costPerUnit;
+                    else c = v * el.specs.costPerUnit;
+
+                    vol += v;
+                    cost += c;
+                });
+                return { vol, cost };
+            }, [elements]);
+
+            // --- ACTIONS ---
+
+            const handleFileSelect = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                
+                // SVG (Vector Extrude)
+                if (file.type.includes('svg')) {
+                    reader.onload = (ev) => {
+                        setSvgInput(ev.target.result);
+                        // Auto-trigger parse could happen here
+                    };
+                    reader.readAsText(file);
+                } 
+                // IMAGE (Height Map Extrude)
+                else if (file.type.includes('image')) {
+                    reader.onload = (ev) => {
+                        const dataUrl = ev.target.result;
+                        const def = ELEMENT_DEFS.TOPOGRAPHY;
+                        const newEl = {
+                            id: crypto.randomUUID(), type: def.type, label: `${def.label} (${file.name})`, color: def.color,
+                            params: { ...def.defaultParams },
+                            specs: { ...def.defaultSpecs },
+                            data: { textureUrl: dataUrl }, // Store image data
+                            position: [0, 0, 0], // Ground level
+                            rotation: [0, 0, 0]
+                        };
+                        setElements(prev => [...prev, newEl]);
+                        setShowImport(false);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+
+            const parseSVG = () => {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(svgInput, "image/svg+xml");
+                const newEls = [];
+                
+                // 1. Lines -> Walls
+                doc.querySelectorAll('line').forEach(line => {
+                    const x1 = parseFloat(line.getAttribute('x1'));
+                    const y1 = parseFloat(line.getAttribute('y1'));
+                    const x2 = parseFloat(line.getAttribute('x2'));
+                    const y2 = parseFloat(line.getAttribute('y2'));
+                    
+                    if(isNaN(x1)) return;
+
+                    const dx = x2 - x1;
+                    const dz = y2 - y1;
+                    const len = Math.sqrt(dx*dx + dz*dz);
+                    const angle = Math.atan2(dx, dz);
+                    const midX = (x1 + x2)/2;
+                    const midZ = (y1 + y2)/2;
+                    const offsetX = midX - 10; 
+                    const offsetZ = midZ - 10;
+
+                    const def = ELEMENT_DEFS.WALL;
+                    newEls.push({
+                        id: crypto.randomUUID(), type: def.type, label: def.label, color: def.color,
+                        params: { ...def.defaultParams, length: len },
+                        specs: { ...def.defaultSpecs },
+                        position: [offsetX, def.defaultParams.height/2, offsetZ],
+                        rotation: [0, angle, 0]
+                    });
+                });
+
+                // 2. Circles -> Columns
+                doc.querySelectorAll('circle').forEach(circ => {
+                    const cx = parseFloat(circ.getAttribute('cx')) - 10;
+                    const cy = parseFloat(circ.getAttribute('cy')) - 10;
+                    const def = ELEMENT_DEFS.COLUMN;
+                    newEls.push({
+                        id: crypto.randomUUID(), type: def.type, label: def.label, color: def.color,
+                        params: { ...def.defaultParams },
+                        specs: { ...def.defaultSpecs },
+                        position: [cx, def.defaultParams.height/2, cy],
+                        rotation: [0, 0, 0]
+                    });
+                });
+
+                // 3. Rects -> Furniture
+                doc.querySelectorAll('rect').forEach(rect => {
+                    const x = parseFloat(rect.getAttribute('x'));
+                    const y = parseFloat(rect.getAttribute('y'));
+                    const w = parseFloat(rect.getAttribute('width'));
+                    const h = parseFloat(rect.getAttribute('height'));
+                    const midX = x + w/2 - 10;
+                    const midZ = y + h/2 - 10;
+                    const def = ELEMENT_DEFS.FURNITURE;
+                    newEls.push({
+                        id: crypto.randomUUID(), type: def.type, label: def.label, color: def.color,
+                        params: { ...def.defaultParams, width: w, depth: h },
+                        specs: { ...def.defaultSpecs },
+                        position: [midX, def.defaultParams.height/2, midZ],
+                        rotation: [0, 0, 0]
+                    });
+                });
+
+                setElements(prev => [...prev, ...newEls]);
+                setShowImport(false);
+            };
+
+            // Drawing Handlers
+            const handleDrawClick = (pt) => {
+                if (drawState.type === 'COLUMN' || drawState.type === 'FURNITURE') {
+                    // Point Object
+                    const def = ELEMENT_DEFS[drawState.type];
+                    const el = {
+                        id: crypto.randomUUID(), type: def.type, label: def.label, color: def.color,
+                        params: { ...def.defaultParams }, specs: { ...def.defaultSpecs },
+                        position: [pt.x, def.defaultParams.height/2, pt.z], rotation: [0,0,0]
+                    };
+                    setElements(prev => [...prev, el]);
+                    setSelectedId(el.id);
+                } else {
+                    // Vector Object (Wall)
+                    if (!drawState.start) {
+                        setDrawState(prev => ({ ...prev, active: true, start: pt, curr: pt }));
+                    } else {
+                        const start = drawState.start;
+                        const end = pt;
+                        const dx = end.x - start.x;
+                        const dz = end.z - start.z;
+                        const len = Math.sqrt(dx*dx + dz*dz);
+                        if(len > 0.1) {
+                            const angle = Math.atan2(dx, dz);
+                            const midX = (start.x + end.x)/2;
+                            const midZ = (start.z + end.z)/2;
+                            const def = ELEMENT_DEFS[drawState.type];
+                            const el = {
+                                id: crypto.randomUUID(), type: def.type, label: def.label, color: def.color,
+                                params: { ...def.defaultParams, length: len },
+                                specs: { ...def.defaultSpecs },
+                                position: [midX, def.defaultParams.height/2, midZ],
+                                rotation: [0, angle, 0]
+                            };
+                            setElements(prev => [...prev, el]);
+                            setSelectedId(el.id);
+                            // Chain
+                            setDrawState(prev => ({ ...prev, start: end, curr: end }));
+                        }
+                    }
+                }
+            };
+
+            const SceneContent = () => {
+                const { camera } = useThree();
+                const snap = (v) => Math.round(v*2)/2;
+
+                const onMove = (e) => {
+                    if (mode === 'draw') {
+                        e.stopPropagation();
+                        setDrawState(p => ({ ...p, curr: new THREE.Vector3(snap(e.point.x), 0, snap(e.point.z)) }));
+                    }
+                };
+
+                const onClick = (e) => {
+                    e.stopPropagation();
+                    if (mode === 'draw') handleDrawClick(new THREE.Vector3(snap(e.point.x), 0, snap(e.point.z)));
+                    else if (selectedId) setSelectedId(null);
+                };
+
+                const onTransform = useCallback((id, obj) => {
+                    setElements(prev => prev.map(el => {
+                        if (el.id === id) return { 
+                            ...el, 
+                            position: [obj.position.x, obj.position.y, obj.position.z], 
+                            rotation: [obj.rotation.x, obj.rotation.y, obj.rotation.z] 
+                        };
+                        return el;
+                    }));
+                }, []);
+
+                return (
+                    <>
+                        <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, -0.01, 0]} onClick={onClick} onPointerMove={onMove} visible={false}>
+                            <planeGeometry args={[100, 100]} />
+                        </mesh>
+                        <Grid infiniteGrid cellSize={1} sectionSize={5} sectionColor={THEME.line} cellColor={THEME.grid} fadeDistance={50} />
+                        
+                        {elements.map(el => (
+                            <BimElement 
+                                key={el.id} element={el} isSelected={selectedId === el.id} 
+                                onSelect={setSelectedId} mode={mode} onTransformEnd={onTransform} 
+                            />
+                        ))}
+
+                        {mode === 'draw' && drawState.active && <DrawGhost start={drawState.start} end={drawState.curr} type={drawState.type} />}
+                        {mode === 'draw' && drawState.curr && (
+                            <mesh position={drawState.curr}>
+                                <sphereGeometry args={[0.15]} />
+                                <meshBasicMaterial color={THEME.guide} />
+                            </mesh>
+                        )}
+                    </>
+                );
+            };
+
+            return (
+                <div className="w-full h-screen bg-[#fdf5e6] text-[#3e2723] font-mono flex flex-col overflow-hidden relative select-none">
+                    
+                    {/* TOP HEADER & HUD */}
+                    <div className="absolute top-4 left-4 right-4 z-10 flex justify-between pointer-events-none">
+                        <div className="flex gap-2 pointer-events-auto">
+                            <button onClick={() => setCameraView(v => v === '2D' ? '3D' : '2D')} className="glass-panel px-4 py-2 rounded-full font-bold shadow-lg hover:bg-white/50 transition flex items-center gap-2">
+                                <ScanLine size={16}/> {cameraView} VIEW
+                            </button>
+                            <button onClick={() => setShowImport(true)} className="glass-panel px-4 py-2 rounded-full font-bold shadow-lg hover:bg-white/50 transition flex items-center gap-2 text-blue-800">
+                                <Upload size={16}/> IMPORT DATA
+                            </button>
+                        </div>
+                        
+                        <div className="pointer-events-auto">
+                            <div className="glass-panel rounded-xl p-3 shadow-xl flex gap-6 text-xs min-w-[300px]">
+                                <div>
+                                    <div className="font-bold opacity-50 mb-1 flex items-center gap-1"><Activity size={12}/> PROJECT VOLUME</div>
+                                    <div className="text-lg font-bold">{stats.vol.toFixed(2)} m³</div>
+                                </div>
+                                <div className="border-r border-[#3e2723] opacity-20"></div>
+                                <div>
+                                    <div className="font-bold opacity-50 mb-1 flex items-center gap-1"><DollarSign size={12}/> EST. COST</div>
+                                    <div className="text-lg font-bold text-green-800">${stats.cost.toLocaleString()}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* IMPORT MODAL */}
+                    {showImport && (
+                        <div className="absolute inset-0 z-50 bg-black/50 flex items-center justify-center p-8 backdrop-blur-sm">
+                            <div className="bg-[#fdf5e6] border-4 border-[#3e2723] rounded-2xl p-6 w-full max-w-2xl shadow-2xl flex flex-col max-h-full">
+                                <h2 className="text-xl font-black mb-4 flex items-center gap-2"><Zap className="text-blue-600"/> HYPER AUTO EXTRUDE</h2>
+                                
+                                <div className="grid grid-cols-2 gap-4 mb-4">
+                                    <div className="p-4 border-2 border-dashed border-[#3e2723]/30 rounded-xl hover:bg-[#3e2723]/5 transition cursor-pointer flex flex-col items-center justify-center text-center" onClick={() => fileInputRef.current.click()}>
+                                        <input type="file" ref={fileInputRef} className="hidden" accept=".svg,.png,.jpg,.jpeg" onChange={handleFileSelect} />
+                                        <FileImage size={32} className="mb-2 opacity-50"/>
+                                        <span className="font-bold text-xs">UPLOAD FILE</span>
+                                        <span className="text-[10px] opacity-60">.SVG (Vector) or .PNG/.JPG (Height Map)</span>
+                                    </div>
+                                    <div className="p-4 border border-[#3e2723]/20 rounded-xl bg-white/30 text-xs">
+                                        <strong className="block mb-1">MODE 1: VECTOR (.SVG)</strong>
+                                        <ul className="list-disc pl-4 opacity-70 mb-2">
+                                            <li>Black Lines = Walls</li>
+                                            <li>Red Circles = Columns</li>
+                                            <li>Blue Rects = Furniture</li>
+                                        </ul>
+                                        <strong className="block mb-1">MODE 2: HEIGHT MAP (.JPG)</strong>
+                                        <ul className="list-disc pl-4 opacity-70">
+                                            <li>Brightness = Elevation</li>
+                                            <li>Auto-generates Terrain</li>
+                                        </ul>
+                                    </div>
+                                </div>
+
+                                <p className="text-xs mb-2 opacity-70 font-bold">OR PASTE SVG CODE:</p>
+                                <textarea 
+                                    className="flex-1 bg-white border border-[#3e2723] rounded p-4 font-mono text-xs mb-4 resize-none focus:outline-none focus:ring-2 ring-blue-500"
+                                    value={svgInput} onChange={e => setSvgInput(e.target.value)}
+                                />
+                                <div className="flex justify-end gap-2">
+                                    <button onClick={() => setShowImport(false)} className="px-6 py-2 rounded border border-[#3e2723] hover:bg-gray-200">CANCEL</button>
+                                    <button onClick={parseSVG} className="px-6 py-2 rounded bg-[#3e2723] text-white font-bold hover:bg-[#5d4037]">PROCESS VECTOR</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* MAIN WORKSPACE */}
+                    <div className="flex-1 flex gap-4 p-4 pt-20">
+                        {/* TOOLBAR */}
+                        <div className="w-20 glass-panel rounded-2xl flex flex-col items-center py-4 gap-2 shadow-lg z-0">
+                            <ToolBtn icon={MousePointer} active={mode==='select'} onClick={() => setMode('select')} label="SEL" />
+                            <div className="w-8 border-b border-[#3e2723] opacity-20 my-1"></div>
+                            <ToolBtn icon={PenTool} active={mode==='draw' && drawState.type==='WALL'} onClick={()=>{setMode('draw'); setDrawState({active:false, type:'WALL'})}} label="WALL" />
+                            <ToolBtn icon={Box} active={mode==='draw' && drawState.type==='COLUMN'} onClick={()=>{setMode('draw'); setDrawState({active:false, type:'COLUMN'})}} label="COL" />
+                            <ToolBtn icon={Layers} active={mode==='draw' && drawState.type==='FURNITURE'} onClick={()=>{setMode('draw'); setDrawState({active:false, type:'FURNITURE'})}} label="FURN" />
+                            <div className="w-8 border-b border-[#3e2723] opacity-20 my-1"></div>
+                            <ToolBtn icon={Axis3d} active={mode==='translate'} onClick={() => setMode('translate')} label="MOV" />
+                            <ToolBtn icon={ArrowUpCircle} active={mode==='rotate'} onClick={() => setMode('rotate')} label="ROT" />
+                            <div className="mt-auto"><ToolBtn icon={Undo} onClick={()=>{}} label="UNDO" /></div>
+                        </div>
+
+                        {/* CANVAS */}
+                        <div className="flex-1 glass-panel rounded-3xl overflow-hidden relative shadow-inner bg-[#fdf6e3]">
+                            <div className="absolute top-4 left-4 z-10 text-[10px] font-bold text-[#3e2723] bg-white/50 px-2 py-1 rounded backdrop-blur">
+                                {mode === 'draw' ? 'INSTRUCTION: CLICK START POINT -> CLICK END POINT' : 'INSTRUCTION: SELECT OBJECT TO EDIT'}
+                            </div>
+                            <div className="absolute border-2 border-[#3e2723] rounded-lg px-6 py-2 bg-[#fdf5e6] shadow-[4px_4px_0px_#3e2723] flex flex-col items-center top-4 left-1/2 -translate-x-1/2 z-10">
+                                <h1 className="text-2xl font-black tracking-widest leading-none text-center">FORGE</h1>
+                                <div className="text-[10px] font-bold text-center tracking-[0.3em] mb-1">SIM-CAL AUDITOR</div>
+                                <div className="text-[8px] font-mono opacity-60 tracking-widest">REALTIME COST ANALYSIS</div>
+                            </div>
+
+                            <Canvas shadows dpr={[1, 2]}>
+                                <color attach="background" args={['#fdf6e3']} />
+                                {cameraView === '3D' ? <PerspectiveCamera makeDefault position={[10, 15, 10]} fov={45} /> : <OrthographicCamera makeDefault position={[0, 50, 0]} zoom={30} />}
+                                <OrbitControls makeDefault enableRotate={cameraView==='3D'} enableDamping={false} />
+                                <SceneContent />
+                            </Canvas>
+                        </div>
+
+                        {/* PROPERTIES */}
+                        <div className="w-72 glass-panel rounded-2xl flex flex-col shadow-lg overflow-hidden">
+                            <div className="bg-[#3e2723] text-[#fdf5e6] px-4 py-2 font-bold text-sm tracking-widest flex items-center gap-2">
+                                <Settings size={14}/> INTELLIGENT DATA
+                            </div>
+                            <div className="flex-1 overflow-auto p-4 scrollbar-hide">
+                                {selectedElement ? (
+                                    <div className="space-y-4">
+                                        <div className="bg-white/50 p-2 rounded border border-[#3e2723]/20">
+                                            <div className="text-xs font-bold uppercase tracking-wider">{selectedElement.label}</div>
+                                            <div className="text-[10px] opacity-60 font-mono">{selectedElement.id.split('-')[0]}...</div>
+                                        </div>
+
+                                        <Group title="SPECIFICATION" icon={FileText}>
+                                            <Field label="OMNICLASS" value={selectedElement.specs.omni} readOnly />
+                                            <Field label="FIRE RATING" value={selectedElement.specs.fireRating} readOnly />
+                                            <Field label="MATERIAL" value={selectedElement.specs.material} />
+                                        </Group>
+
+                                        <Group title="DIMENSIONS" icon={Ruler}>
+                                            {selectedElement.type === 'WALL' ? (
+                                                <>
+                                                    <Field label="LENGTH (m)" value={selectedElement.params.length.toFixed(2)} onChange={v => {
+                                                        const els = elements.map(e => e.id === selectedId ? {...e, params: {...e.params, length: parseFloat(v)}} : e);
+                                                        setElements(els);
+                                                    }}/>
+                                                    <Field label="HEIGHT (m)" value={selectedElement.params.height} onChange={v => {
+                                                        const els = elements.map(e => e.id === selectedId ? {...e, params: {...e.params, height: parseFloat(v)}} : e);
+                                                        setElements(els);
+                                                    }}/>
+                                                </>
+                                            ) : selectedElement.type === 'TOPOGRAPHY' ? (
+                                                <>
+                                                    <Field label="WIDTH (m)" value={selectedElement.params.width} onChange={v => {
+                                                        const els = elements.map(e => e.id === selectedId ? {...e, params: {...e.params, width: parseFloat(v)}} : e);
+                                                        setElements(els);
+                                                    }}/>
+                                                    <Field label="DEPTH (m)" value={selectedElement.params.depth} onChange={v => {
+                                                        const els = elements.map(e => e.id === selectedId ? {...e, params: {...e.params, depth: parseFloat(v)}} : e);
+                                                        setElements(els);
+                                                    }}/>
+                                                    <Field label="MAX HEIGHT" value={selectedElement.params.height} onChange={v => {
+                                                        const els = elements.map(e => e.id === selectedId ? {...e, params: {...e.params, height: parseFloat(v)}} : e);
+                                                        setElements(els);
+                                                    }}/>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Field label="WIDTH (m)" value={selectedElement.params.width} onChange={v => {
+                                                        const els = elements.map(e => e.id === selectedId ? {...e, params: {...e.params, width: parseFloat(v)}} : e);
+                                                        setElements(els);
+                                                    }}/>
+                                                </>
+                                            )}
+                                        </Group>
+
+                                        <Group title="COST ANALYSIS" icon={DollarSign} hl>
+                                            <div className="flex justify-between text-xs mb-1">
+                                                <span className="opacity-60">UNIT COST</span>
+                                                <span className="font-mono">${selectedElement.specs.costPerUnit}</span>
+                                            </div>
+                                            <div className="flex justify-between text-sm font-bold border-t border-[#3e2723]/20 pt-1 mt-1">
+                                                <span>TOTAL</span>
+                                                <span className="text-green-700">
+                                                    ${(selectedElement.type==='FURNITURE' ? selectedElement.specs.costPerUnit : 
+                                                      (selectedElement.type==='WALL' ? selectedElement.params.length * selectedElement.params.height * selectedElement.params.thickness * selectedElement.specs.costPerUnit :
+                                                      (selectedElement.type==='TOPOGRAPHY' ? selectedElement.params.width * selectedElement.params.depth * (selectedElement.params.height*0.5) * selectedElement.specs.costPerUnit :
+                                                      selectedElement.params.width * selectedElement.params.height * selectedElement.params.depth * selectedElement.specs.costPerUnit))).toFixed(2)}
+                                                </span>
+                                            </div>
+                                        </Group>
+
+                                        <button onClick={() => { setElements(elements.filter(e => e.id !== selectedId)); setSelectedId(null); }} className="w-full py-2 mt-4 bg-red-100 text-red-800 border border-red-300 rounded hover:bg-red-200 text-xs font-bold flex items-center justify-center gap-2">
+                                            <Trash2 size={12}/> DELETE ELEMENT
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="h-full flex flex-col items-center justify-center opacity-30">
+                                        <MousePointer size={32} />
+                                        <p className="text-xs mt-2 text-center font-bold">SELECT OBJECT</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        const ToolBtn = ({ icon: Icon, active, onClick, label }) => (
+            <button onClick={onClick} className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center transition-all ${active ? 'bg-[#3e2723] text-white shadow-inner scale-95' : 'hover:bg-[#3e2723]/10'}`}>
+                <Icon size={20} strokeWidth={2.5} />
+                <span className="text-[9px] font-bold mt-0.5">{label}</span>
+            </button>
+        );
+
+        const Group = ({ title, icon: Icon, children, hl }) => (
+            <div className={`rounded border border-[#3e2723]/30 p-2 ${hl ? 'bg-yellow-50/50' : ''}`}>
+                <div className="text-[10px] font-bold opacity-60 mb-2 flex items-center gap-1"><Icon size={10}/> {title}</div>
+                <div className="space-y-2">{children}</div>
+            </div>
+        );
+
+        const Field = ({ label, value, onChange, readOnly }) => (
+            <div className="flex justify-between items-center text-xs">
+                <span className="font-bold opacity-80">{label}</span>
+                {readOnly ? (
+                    <span className="font-mono opacity-60">{value}</span>
+                ) : (
+                    <input type="number" step="0.1" value={value} onChange={e => onChange(e.target.value)} className="w-16 bg-transparent border-b border-[#3e2723] text-right focus:outline-none font-mono"/>
+                )}
+            </div>
+        );
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<ForgeBimApp />);
+    </script>
+</body>
+</html>
