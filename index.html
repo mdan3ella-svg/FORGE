@@ -597,8 +597,14 @@
 
                 return (
                     <>
-                        <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, -0.01, 0]} onClick={onClick} onPointerMove={onMove} visible={false}>
-                            <planeGeometry args={[100, 100]} />
+                        <mesh 
+                            rotation={[-Math.PI/2, 0, 0]} 
+                            position={[0, -0.01, 0]} 
+                            onClick={onClick}
+                            onPointerMove={onMove}
+                            visible={false}
+                        >
+                            <planeGeometry args={[10000, 10000]} />
                         </mesh>
                         <Grid infiniteGrid cellSize={1} sectionSize={5} sectionColor={THEME.line} cellColor={THEME.grid} fadeDistance={50} />
                         
