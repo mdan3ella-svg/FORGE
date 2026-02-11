@@ -46,7 +46,7 @@
         import { 
             Box, Layers, PenTool, Trash2, Download, MousePointer, Undo,
             Maximize, Settings, Save, ArrowUpCircle, Axis3d, Ruler, 
-            DollarSign, FileText, ScanLine, Upload, Zap, Activity, Image as ImageIcon, FileImage, Palette, Link as LinkIcon, Calculator, HelpCircle
+            DollarSign, FileText, ScanLine, Upload, Zap, Activity, Image as ImageIcon, FileImage, Palette, Link as LinkIcon, Calculator, HelpCircle, FileSpreadsheet
         } from 'lucide-react';
         import * as THREE from 'three';
 
@@ -546,6 +546,58 @@
                 setElements(prev => prev.map(el => el.id === selectedId ? { ...el, parentId: val } : el));
             }
 
+            const deleteSelected = () => {
+                setElements(prev => prev.filter(e => e.id !== selectedId));
+                setSelectedId(null);
+            };
+
+            const handleExport = () => {
+                const data = JSON.stringify(elements, null, 2);
+                const blob = new Blob([data], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'forge_bim_data.json';
+                a.click();
+            };
+
+            const handleExportCSV = () => {
+                const headers = [
+                    "ID", "Type", "Label", "Layer", "Parent ID",
+                    "Material", "OmniClass", "Fire Rating",
+                    "Dim A (L/W)", "Dim B (H)", "Dim C (Th/D)",
+                    "Auto Qty", "Manual Qty", "Unit",
+                    "Cost Rate ($)", "Cost Ratio", "Total Cost ($)"
+                ];
+
+                const rows = elements.map(el => {
+                    const p = el.params;
+                    const s = el.specs;
+                    const dimA = el.type === 'WALL' ? p.length : p.width;
+                    const dimB = p.height;
+                    const dimC = el.type === 'WALL' ? p.thickness : p.depth;
+                    const unit = el.type === 'FURNITURE' ? 'Unit' : 'm³';
+                    const autoQty = getAutoQty(el);
+                    const cost = getElementCost(el);
+
+                    return [
+                        el.humanId, el.type, el.label, ELEMENT_DEFS[el.type]?.layer || 'N/A', el.parentId || '-',
+                        s.material, s.omni, s.fireRating,
+                        dimA?.toFixed(2), dimB?.toFixed(2), dimC?.toFixed(2),
+                        autoQty.toFixed(2), s.manualQty || 0, unit,
+                        s.costPerUnit, s.costRatio, cost.toFixed(2)
+                    ].map(val => `"${val}"`).join(",");
+                });
+
+                const csvContent = [headers.join(","), ...rows].join("\n");
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `forge_cost_schedule_${new Date().toISOString().slice(0,10)}.csv`;
+                a.click();
+            };
+
             return (
                 <div className="w-full h-screen bg-[#fdf5e6] text-[#3e2723] font-mono flex flex-col overflow-hidden relative select-none">
                     
@@ -735,7 +787,7 @@
                                             </div>
                                         </Group>
 
-                                        <button onClick={() => { setElements(elements.filter(e => e.id !== selectedId)); setSelectedId(null); }} className="w-full py-2 mt-4 bg-red-100 text-red-800 border border-red-300 rounded hover:bg-red-200 text-xs font-bold flex items-center justify-center gap-2">
+                                        <button onClick={deleteSelected} className="w-full py-2 mt-4 bg-red-100 text-red-800 border border-red-300 rounded hover:bg-red-200 text-xs font-bold flex items-center justify-center gap-2">
                                             <Trash2 size={12}/> DELETE ELEMENT
                                         </button>
                                     </div>
@@ -745,6 +797,14 @@
                                         <p className="text-xs mt-2 text-center font-bold">SELECT OBJECT</p>
                                     </div>
                                 )}
+                            </div>
+                            <div className="p-3 border-t border-[#3e2723]/20 bg-[#fdf5e6]">
+                                <button onClick={handleExport} className="w-full py-2 bg-[#3e2723] text-[#fdf5e6] font-bold rounded-full border-2 border-[#3e2723] shadow-lg flex items-center justify-center gap-2 text-xs mb-2 hover:bg-[#5d4037]">
+                                    <Download className="w-3 h-3" /> EXPORT JSON
+                                </button>
+                                <button onClick={handleExportCSV} className="w-full py-2 bg-green-700 text-white font-bold rounded-full border-2 border-green-900 shadow-lg flex items-center justify-center gap-2 text-xs hover:bg-green-600">
+                                    <FileSpreadsheet className="w-3 h-3" /> EXPORT COST SCHEDULE (.CSV)
+                                </button>
                             </div>
                         </div>
                     </div>
