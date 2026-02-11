@@ -46,7 +46,7 @@
         import { 
             Box, Layers, PenTool, Trash2, Download, MousePointer, Undo,
             Maximize, Settings, Save, ArrowUpCircle, Axis3d, Ruler, 
-            DollarSign, FileText, ScanLine, Upload, Zap, Activity, Image as ImageIcon, FileImage, Palette, Link as LinkIcon
+            DollarSign, FileText, ScanLine, Upload, Zap, Activity, Image as ImageIcon, FileImage, Palette, Link as LinkIcon, Calculator, HelpCircle
         } from 'lucide-react';
         import * as THREE from 'three';
 
@@ -77,25 +77,25 @@
             WALL: { 
                 type: 'WALL', label: 'Wall System', layer: 'Architecture', prefix: 'WL',
                 defaultParams: { height: 3, thickness: 0.2, length: 1.0 }, 
-                defaultSpecs: { material: 'Concrete Reinf.', costPerUnit: 250, fireRating: '2HR', omni: '23-13 31 17' },
+                defaultSpecs: { material: 'Concrete Reinf.', costPerUnit: 250, costRatio: 1.0, manualQty: 0, fireRating: '2HR', omni: '23-13 31 17' },
                 color: '#bdbdbd'
             },
             COLUMN: { 
                 type: 'COLUMN', label: 'Struct Column', layer: 'Structure', prefix: 'COL',
                 defaultParams: { height: 3, width: 0.4, depth: 0.4 },
-                defaultSpecs: { material: 'Steel S355', costPerUnit: 450, fireRating: '3HR', omni: '23-13 23 11' },
+                defaultSpecs: { material: 'Steel S355', costPerUnit: 450, costRatio: 1.0, manualQty: 0, fireRating: '3HR', omni: '23-13 23 11' },
                 color: '#546e7a'
             },
             FURNITURE: {
                 type: 'FURNITURE', label: 'Workstation', layer: 'Interior', prefix: 'FUR',
                 defaultParams: { height: 0.75, width: 1.6, depth: 0.8 },
-                defaultSpecs: { material: 'Composite', costPerUnit: 800, fireRating: 'N/A', omni: '23-40 20 00' },
+                defaultSpecs: { material: 'Composite', costPerUnit: 800, costRatio: 1.0, manualQty: 0, fireRating: 'N/A', omni: '23-40 20 00' },
                 color: '#ffcc80'
             },
             TOPOGRAPHY: {
                 type: 'TOPOGRAPHY', label: 'Height Map Terrain', layer: 'Site', prefix: 'TER',
                 defaultParams: { width: 20, depth: 20, height: 5, segments: 128 }, 
-                defaultSpecs: { material: 'Site/Earth', costPerUnit: 45, fireRating: 'N/A', omni: '31-00 00 00' },
+                defaultSpecs: { material: 'Site/Earth', costPerUnit: 45, costRatio: 1.0, manualQty: 0, fireRating: 'N/A', omni: '31-00 00 00' },
                 color: '#a5d6a7'
             }
         };
@@ -140,7 +140,6 @@
 
             const showGizmo = isSelected && ['translate', 'rotate'].includes(mode);
 
-            // Determine color: Selection > Override > Material Library > Default
             const displayColor = isSelected ? THEME.selected : (element.color || MATERIAL_LIBRARY[element.specs.material] || '#cccccc');
 
             return (
@@ -210,7 +209,64 @@
             );
         };
 
-        // --- 3. LOGIC & STATE ---
+        // --- 3. UI HELPER COMPONENTS ---
+
+        const HelpModal = ({ onClose }) => (
+            <div className="absolute inset-0 z-50 bg-black/60 flex items-center justify-center p-8 backdrop-blur-sm">
+                <div className="bg-[#fdf5e6] border-4 border-[#3e2723] rounded-2xl p-6 w-full max-w-2xl shadow-2xl flex flex-col max-h-full overflow-y-auto">
+                    <div className="flex justify-between items-start mb-4">
+                        <h2 className="text-xl font-black flex items-center gap-2 text-[#3e2723]">
+                            <HelpCircle className="text-blue-600" /> WELCOME TO FORGE
+                        </h2>
+                        <button onClick={onClose} className="text-[#3e2723] hover:text-red-600 font-bold">✕</button>
+                    </div>
+                    
+                    <div className="space-y-4 text-xs font-mono text-[#3e2723]">
+                        <div className="p-3 bg-white/50 rounded border border-[#3e2723]/20">
+                            <h3 className="font-bold text-sm mb-1">1. NAVIGATION CONTROLS</h3>
+                            <ul className="list-disc pl-4 opacity-80 space-y-1">
+                                <li><strong>Rotate:</strong> Left Click + Drag (3D Mode)</li>
+                                <li><strong>Pan:</strong> Right Click + Drag</li>
+                                <li><strong>Zoom:</strong> Scroll Wheel</li>
+                                <li><strong>View Toggle:</strong> Use buttons in top-left for 2D Plan / 3D Model.</li>
+                            </ul>
+                        </div>
+
+                        <div className="p-3 bg-white/50 rounded border border-[#3e2723]/20">
+                            <h3 className="font-bold text-sm mb-1">2. CREATION WORKFLOW</h3>
+                            <ul className="list-disc pl-4 opacity-80 space-y-1">
+                                <li><strong>Walls:</strong> Select 'WALL' -> Click Start -> Click End. (Auto-chains for continuous walls).</li>
+                                <li><strong>Columns/Furniture:</strong> Select Tool -> Single Click to place.</li>
+                                <li><strong>Escape Key:</strong> Press 'ESC' to cancel current segment or exit tool.</li>
+                            </ul>
+                        </div>
+
+                        <div className="p-3 bg-white/50 rounded border border-[#3e2723]/20">
+                            <h3 className="font-bold text-sm mb-1">3. DATA & ANALYSIS</h3>
+                            <ul className="list-disc pl-4 opacity-80 space-y-1">
+                                <li><strong>Select:</strong> Use 'SEL' tool -> Click any object.</li>
+                                <li><strong>Edit:</strong> Use Right Panel to change Dimensions, Materials, and Parents.</li>
+                                <li><strong>BoQ:</strong> Adjust 'Manual Qty' or 'Cost Ratio' for precise budgeting.</li>
+                            </ul>
+                        </div>
+
+                        <div className="p-3 bg-white/50 rounded border border-[#3e2723]/20">
+                            <h3 className="font-bold text-sm mb-1">4. AUTOMATION</h3>
+                            <ul className="list-disc pl-4 opacity-80 space-y-1">
+                                <li><strong>Import Data:</strong> Upload .SVG (Vector extrude) or .JPG/PNG (Terrain map).</li>
+                                <li><strong>Export:</strong> Download JSON data for external use.</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <button onClick={onClose} className="mt-6 w-full py-3 bg-[#3e2723] text-[#fdf5e6] font-bold rounded-xl hover:bg-[#5d4037] transition">
+                        GET STARTED
+                    </button>
+                </div>
+            </div>
+        );
+
+        // --- 4. LOGIC & STATE ---
 
         function ForgeBimApp() {
             const [elements, setElements] = useState([]);
@@ -219,30 +275,44 @@
             const [cameraView, setCameraView] = useState('3D');
             const [drawState, setDrawState] = useState({ active: false, start: null, curr: null, type: null });
             const [showImport, setShowImport] = useState(false);
+            const [showHelp, setShowHelp] = useState(true);
             const [svgInput, setSvgInput] = useState(SVG_DEMO);
             const fileInputRef = useRef(null);
 
             const selectedElement = useMemo(() => elements.find(e => e.id === selectedId), [elements, selectedId]);
 
-            // --- ANALYSIS ---
+            // --- ANALYSIS & BOQ ---
+            const getAutoQty = useCallback((el) => {
+                if (!el) return 0;
+                const p = el.params;
+                if (el.type === 'WALL') return p.length * p.height * p.thickness;
+                if (el.type === 'TOPOGRAPHY') return p.width * p.depth * (p.height * 0.5);
+                if (el.type === 'FURNITURE') return 1;
+                return p.width * p.height * p.depth;
+            }, []);
+
+            const getEffectiveQty = useCallback((el) => {
+                if (!el) return 0;
+                const manual = parseFloat(el.specs.manualQty);
+                return (manual && manual > 0) ? manual : getAutoQty(el);
+            }, [getAutoQty]);
+
+            const getElementCost = useCallback((el) => {
+                if (!el) return 0;
+                const qty = getEffectiveQty(el);
+                const rate = el.specs.costPerUnit || 0;
+                const ratio = el.specs.costRatio || 1.0;
+                return qty * rate * ratio;
+            }, [getEffectiveQty]);
+
             const stats = useMemo(() => {
                 let vol = 0, cost = 0;
                 elements.forEach(el => {
-                    let v = 0;
-                    const p = el.params;
-                    if (el.type === 'WALL') v = p.length * p.height * p.thickness;
-                    else if (el.type === 'TOPOGRAPHY') v = p.width * p.depth * (p.height * 0.5); 
-                    else v = p.width * p.height * p.depth;
-                    
-                    let c = 0;
-                    if (el.type === 'FURNITURE') c = el.specs.costPerUnit;
-                    else c = v * el.specs.costPerUnit;
-
-                    vol += v;
-                    cost += c;
+                    vol += getAutoQty(el); 
+                    cost += getElementCost(el);
                 });
                 return { vol, cost };
-            }, [elements]);
+            }, [elements, getAutoQty, getElementCost]);
 
             // --- HELPERS ---
             const generateID = (type, count) => {
@@ -288,85 +358,63 @@
                 const newEls = [];
                 let count = elements.length;
                 
-                // Helper to extract color from SVG style
                 const getSvgColor = (el, fallback) => {
                     return el.getAttribute('stroke') || el.getAttribute('fill') || fallback;
                 }
 
-                // 1. Lines -> Walls
                 doc.querySelectorAll('line').forEach(line => {
                     const x1 = parseFloat(line.getAttribute('x1'));
                     const y1 = parseFloat(line.getAttribute('y1'));
                     const x2 = parseFloat(line.getAttribute('x2'));
                     const y2 = parseFloat(line.getAttribute('y2'));
                     const svgId = line.getAttribute('id');
-                    
                     if(isNaN(x1)) return;
-
-                    const dx = x2 - x1;
-                    const dz = y2 - y1;
+                    const dx = x2 - x1; const dz = y2 - y1;
                     const len = Math.sqrt(dx*dx + dz*dz);
                     const angle = Math.atan2(dx, dz);
-                    const midX = (x1 + x2)/2;
-                    const midZ = (y1 + y2)/2;
-                    const offsetX = midX - 10; 
-                    const offsetZ = midZ - 10;
-
+                    const midX = (x1 + x2)/2; const midZ = (y1 + y2)/2;
+                    const offsetX = midX - 10; const offsetZ = midZ - 10;
                     const def = ELEMENT_DEFS.WALL;
                     newEls.push({
-                        id: crypto.randomUUID(), 
-                        humanId: svgId || generateID(def.type, count++),
-                        type: def.type, label: def.label, 
-                        color: getSvgColor(line, def.color),
+                        id: crypto.randomUUID(), humanId: svgId || generateID(def.type, count++),
+                        type: def.type, label: def.label, color: getSvgColor(line, def.color),
                         params: { ...def.defaultParams, length: len },
                         specs: { ...def.defaultSpecs },
                         position: [offsetX, def.defaultParams.height/2, offsetZ],
-                        rotation: [0, angle, 0],
-                        parentId: null
+                        rotation: [0, angle, 0], parentId: null
                     });
                 });
 
-                // 2. Circles -> Columns
                 doc.querySelectorAll('circle').forEach(circ => {
                     const cx = parseFloat(circ.getAttribute('cx')) - 10;
                     const cy = parseFloat(circ.getAttribute('cy')) - 10;
                     const svgId = circ.getAttribute('id');
                     const def = ELEMENT_DEFS.COLUMN;
                     newEls.push({
-                        id: crypto.randomUUID(), 
-                        humanId: svgId || generateID(def.type, count++),
-                        type: def.type, label: def.label, 
-                        color: getSvgColor(circ, def.color),
+                        id: crypto.randomUUID(), humanId: svgId || generateID(def.type, count++),
+                        type: def.type, label: def.label, color: getSvgColor(circ, def.color),
                         params: { ...def.defaultParams },
                         specs: { ...def.defaultSpecs },
                         position: [cx, def.defaultParams.height/2, cy],
-                        rotation: [0, 0, 0],
-                        parentId: null
+                        rotation: [0, 0, 0], parentId: null
                     });
                 });
 
-                // 3. Rects -> Furniture
                 doc.querySelectorAll('rect').forEach(rect => {
                     const x = parseFloat(rect.getAttribute('x'));
                     const y = parseFloat(rect.getAttribute('y'));
                     const w = parseFloat(rect.getAttribute('width'));
                     const h = parseFloat(rect.getAttribute('height'));
                     const svgId = rect.getAttribute('id');
-                    
-                    const midX = x + w/2 - 10;
-                    const midZ = y + h/2 - 10;
-                    
+                    const midX = x + w/2 - 10; const midZ = y + h/2 - 10;
                     const def = ELEMENT_DEFS.FURNITURE;
                     newEls.push({
-                        id: crypto.randomUUID(), 
-                        humanId: svgId || generateID(def.type, count++),
-                        type: def.type, label: def.label, 
-                        color: getSvgColor(rect, def.color),
+                        id: crypto.randomUUID(), humanId: svgId || generateID(def.type, count++),
+                        type: def.type, label: def.label, color: getSvgColor(rect, def.color),
                         params: { ...def.defaultParams, width: w, depth: h },
                         specs: { ...def.defaultSpecs },
                         position: [midX, def.defaultParams.height/2, midZ],
-                        rotation: [0, 0, 0],
-                        parentId: null
+                        rotation: [0, 0, 0], parentId: null
                     });
                 });
 
@@ -379,12 +427,10 @@
                 if (drawState.type === 'COLUMN' || drawState.type === 'FURNITURE') {
                     const def = ELEMENT_DEFS[drawState.type];
                     const el = {
-                        id: crypto.randomUUID(), 
-                        humanId: generateID(def.type, count),
+                        id: crypto.randomUUID(), humanId: generateID(def.type, count),
                         type: def.type, label: def.label, color: def.color,
                         params: { ...def.defaultParams }, specs: { ...def.defaultSpecs },
-                        position: [pt.x, def.defaultParams.height/2, pt.z], rotation: [0,0,0],
-                        parentId: null
+                        position: [pt.x, def.defaultParams.height/2, pt.z], rotation: [0,0,0], parentId: null
                     };
                     setElements(prev => [...prev, el]);
                     setSelectedId(el.id);
@@ -394,23 +440,19 @@
                     } else {
                         const start = drawState.start;
                         const end = pt;
-                        const dx = end.x - start.x;
-                        const dz = end.z - start.z;
+                        const dx = end.x - start.x; const dz = end.z - start.z;
                         const len = Math.sqrt(dx*dx + dz*dz);
                         if(len > 0.1) {
                             const angle = Math.atan2(dx, dz);
-                            const midX = (start.x + end.x)/2;
-                            const midZ = (start.z + end.z)/2;
+                            const midX = (start.x + end.x)/2; const midZ = (start.z + end.z)/2;
                             const def = ELEMENT_DEFS[drawState.type];
                             const el = {
-                                id: crypto.randomUUID(), 
-                                humanId: generateID(def.type, count),
+                                id: crypto.randomUUID(), humanId: generateID(def.type, count),
                                 type: def.type, label: def.label, color: def.color,
                                 params: { ...def.defaultParams, length: len },
                                 specs: { ...def.defaultSpecs },
                                 position: [midX, def.defaultParams.height/2, midZ],
-                                rotation: [0, angle, 0],
-                                parentId: null
+                                rotation: [0, angle, 0], parentId: null
                             };
                             setElements(prev => [...prev, el]);
                             setSelectedId(el.id);
@@ -473,7 +515,6 @@
                 );
             };
 
-            // Property Updaters
             const updateParam = (key, value) => {
                 if (!selectedId) return;
                 setElements(prev => prev.map(el => el.id === selectedId ? { ...el, params: { ...el.params, [key]: parseFloat(value) || 0.1 } } : el));
@@ -484,7 +525,6 @@
                 setElements(prev => prev.map(el => {
                     if (el.id === selectedId) {
                         const newSpecs = { ...el.specs, [key]: value };
-                        // Intelligent Color Update: If material changes, try to update color
                         let newColor = el.color;
                         if (key === 'material' && MATERIAL_LIBRARY[value]) {
                             newColor = MATERIAL_LIBRARY[value];
@@ -511,6 +551,9 @@
                     {/* TOP HEADER */}
                     <div className="absolute top-4 left-4 right-4 z-10 flex justify-between pointer-events-none">
                         <div className="flex gap-2 pointer-events-auto">
+                            <button onClick={() => setShowHelp(true)} className="glass-panel w-10 h-10 rounded-full font-bold shadow-lg hover:bg-white/50 transition flex items-center justify-center text-[#3e2723]">
+                                <HelpCircle size={18} />
+                            </button>
                             <button onClick={() => setCameraView(v => v === '2D' ? '3D' : '2D')} className="glass-panel px-4 py-2 rounded-full font-bold shadow-lg hover:bg-white/50 transition flex items-center gap-2">
                                 <ScanLine size={16}/> {cameraView} VIEW
                             </button>
@@ -528,12 +571,15 @@
                                 <div className="border-r border-[#3e2723] opacity-20"></div>
                                 <div>
                                     <div className="font-bold opacity-50 mb-1 flex items-center gap-1"><DollarSign size={12}/> EST. COST</div>
-                                    <div className="text-lg font-bold text-green-800">${stats.cost.toLocaleString()}</div>
+                                    <div className="text-lg font-bold text-green-800">${stats.cost.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
+                    {/* MODALS */}
+                    {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
+                    
                     {/* IMPORT MODAL */}
                     {showImport && (
                         <div className="absolute inset-0 z-50 bg-black/50 flex items-center justify-center p-8 backdrop-blur-sm">
@@ -666,18 +712,19 @@
                                             )}
                                         </Group>
 
-                                        <Group title="COST ANALYSIS" icon={DollarSign} hl>
-                                            <div className="flex justify-between text-xs mb-1">
-                                                <span className="opacity-60">UNIT COST</span>
-                                                <span className="font-mono">${selectedElement.specs.costPerUnit}</span>
+                                        <Group title="MANUAL BOQ & COST" icon={Calculator} hl>
+                                            <LabeledInput label="UNIT RATE ($)" value={selectedElement.specs.costPerUnit} onChange={v => updateSpec('costPerUnit', v)} />
+                                            <LabeledInput label="COST RATIO" value={selectedElement.specs.costRatio} onChange={v => updateSpec('costRatio', v)} />
+                                            <LabeledInput label="MANUAL QTY" value={selectedElement.specs.manualQty} onChange={v => updateSpec('manualQty', v)} />
+                                            
+                                            <div className="text-[9px] opacity-50 text-right mt-1 mb-2">
+                                                Auto Qty: {getAutoQty(selectedElement).toFixed(2)} {selectedElement.type === 'FURNITURE' ? 'Units' : 'm³'}
                                             </div>
+
                                             <div className="flex justify-between text-sm font-bold border-t border-[#3e2723]/20 pt-1 mt-1">
                                                 <span>TOTAL</span>
                                                 <span className="text-green-700">
-                                                    ${(selectedElement.type==='FURNITURE' ? selectedElement.specs.costPerUnit : 
-                                                      (selectedElement.type==='WALL' ? selectedElement.params.length * selectedElement.params.height * selectedElement.params.thickness * selectedElement.specs.costPerUnit :
-                                                      (selectedElement.type==='TOPOGRAPHY' ? selectedElement.params.width * selectedElement.params.depth * (selectedElement.params.height*0.5) * selectedElement.specs.costPerUnit :
-                                                      selectedElement.params.width * selectedElement.params.height * selectedElement.params.depth * selectedElement.specs.costPerUnit))).toFixed(2)}
+                                                    ${getElementCost(selectedElement).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                                                 </span>
                                             </div>
                                         </Group>
@@ -721,6 +768,13 @@
                 ) : (
                     <input type="number" step="0.1" value={value} onChange={e => onChange(e.target.value)} className="w-16 bg-transparent border-b border-[#3e2723] text-right focus:outline-none font-mono"/>
                 )}
+            </div>
+        );
+
+        const LabeledInput = ({ label, value, onChange }) => (
+            <div className="flex justify-between items-center text-xs">
+                <span className="font-bold opacity-80">{label}</span>
+                <input type="number" step="0.1" value={value} onChange={e => onChange(e.target.value)} className="w-16 bg-transparent border-b border-[#3e2723] text-right focus:outline-none font-mono"/>
             </div>
         );
 
