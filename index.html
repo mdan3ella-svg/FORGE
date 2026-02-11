@@ -78,25 +78,25 @@
                 type: 'WALL', label: 'Concrete Wall', layer: 'Architecture', prefix: 'CW',
                 defaultParams: { height: 3, thickness: 0.2, length: 1.0 }, 
                 defaultSpecs: { material: 'Concrete', costPerUnit: 250, costRatio: 1.0, manualQty: 0, fireRating: '2HR', omni: '23-13 31 17' },
-                color: '#eeeeee' // Greyish White Diffuse (Poche)
+                color: '#eeeeee' 
             },
             WALL_WOOD: { 
                 type: 'WALL_WOOD', label: 'Wood Wall', layer: 'Architecture', prefix: 'WW',
                 defaultParams: { height: 3, thickness: 0.15, length: 1.0 }, 
                 defaultSpecs: { material: 'Wood Frame', costPerUnit: 120, costRatio: 1.0, manualQty: 0, fireRating: '1HR', omni: '23-13 21 11' },
-                color: '#d7ccc8' // Wood/Beige
+                color: '#d7ccc8' 
             },
             COLUMN: { 
                 type: 'COLUMN', label: 'Struct Column', layer: 'Structure', prefix: 'COL',
                 defaultParams: { height: 3, width: 0.4, depth: 0.4 },
                 defaultSpecs: { material: 'Steel S355', costPerUnit: 450, costRatio: 1.0, manualQty: 0, fireRating: '3HR', omni: '23-13 23 11' },
-                color: '#ffb74d' // Reddish Yellow
+                color: '#ffb74d'
             },
             FURNITURE: {
                 type: 'FURNITURE', label: 'Workstation', layer: 'Interior', prefix: 'FUR',
                 defaultParams: { height: 0.75, width: 1.6, depth: 0.8 },
                 defaultSpecs: { material: 'Composite', costPerUnit: 800, costRatio: 1.0, manualQty: 0, fireRating: 'N/A', omni: '23-40 20 00' },
-                color: '#81c784' // Green
+                color: '#81c784'
             },
             TOPOGRAPHY: {
                 type: 'TOPOGRAPHY', label: 'Height Map Terrain', layer: 'Site', prefix: 'TER',
@@ -110,7 +110,7 @@
 
         // --- 2. ENGINE COMPONENTS ---
 
-        const TopographyMesh = ({ element, dims, isSelected }) => {
+        const TopographyMesh = React.memo(({ element, dims, isSelected }) => {
             const texture = useMemo(() => {
                 if (!element.data?.textureUrl) return null;
                 return new THREE.TextureLoader().load(element.data.textureUrl);
@@ -130,9 +130,9 @@
                     {isSelected && <lineSegments><wireframeGeometry args={[new THREE.PlaneGeometry(dims[0], dims[2], 10, 10)]} /><lineBasicMaterial color={THEME.selected} /></lineSegments>}
                 </mesh>
             );
-        };
+        });
 
-        const BimElement = ({ element, isSelected, onSelect, mode, onTransformEnd }) => {
+        const BimElement = React.memo(({ element, isSelected, onSelect, mode, onTransformEnd }) => {
             const [hovered, setHover] = useState(false);
             const [mesh, setMesh] = useState(null);
             useCursor(hovered, 'pointer', 'auto');
@@ -145,16 +145,21 @@
             }, [element.params, element.type]);
 
             const showGizmo = isSelected && ['translate', 'rotate'].includes(mode);
-
-            // Determine color: Selection > Override > Material Library > Default
             const displayColor = isSelected ? THEME.selected : (element.color || MATERIAL_LIBRARY[element.specs.material] || '#cccccc');
 
             return (
                 <group position={element.position} rotation={element.rotation}>
                     <group
                         ref={setMesh}
-                        onClick={(e) => { e.stopPropagation(); onSelect(element.id); }}
-                        onPointerOver={() => setHover(true)}
+                        // Disable raycast when drawing to prevent jumping cursors
+                        raycast={mode === 'draw' ? () => null : undefined} 
+                        onClick={(e) => { 
+                            if(mode !== 'draw') {
+                                e.stopPropagation(); 
+                                onSelect(element.id); 
+                            }
+                        }}
+                        onPointerOver={() => mode !== 'draw' && setHover(true)}
                         onPointerOut={() => setHover(false)}
                     >
                         {element.type === 'TOPOGRAPHY' ? (
@@ -188,7 +193,7 @@
                     )}
                 </group>
             );
-        };
+        });
 
         const DrawGhost = ({ startPoint, endPoint, type }) => {
             if (!startPoint || !endPoint || !type || type === 'TOPOGRAPHY') return null;
@@ -569,8 +574,16 @@
                 const onMove = (e) => {
                     if (mode === 'draw') {
                         e.stopPropagation();
-                        const snapped = new THREE.Vector3(snapToGrid(e.point.x), 0, snapToGrid(e.point.z));
-                        setDrawState(prev => ({ ...prev, endPoint: snapped }));
+                        // Optimization: Only update state if snapped position changed significantly
+                        const snappedX = snapToGrid(e.point.x);
+                        const snappedZ = snapToGrid(e.point.z);
+                        
+                        setDrawState(prev => {
+                            if (!prev.endPoint || prev.endPoint.x !== snappedX || prev.endPoint.z !== snappedZ) {
+                                return { ...prev, endPoint: new THREE.Vector3(snappedX, 0, snappedZ) };
+                            }
+                            return prev;
+                        });
                     }
                 };
 
@@ -597,6 +610,7 @@
 
                 return (
                     <>
+                        {/* Huge Ground Plane for Raycasting */}
                         <mesh 
                             rotation={[-Math.PI/2, 0, 0]} 
                             position={[0, -0.01, 0]} 
@@ -606,7 +620,15 @@
                         >
                             <planeGeometry args={[10000, 10000]} />
                         </mesh>
-                        <Grid infiniteGrid cellSize={1} sectionSize={5} sectionColor={THEME.line} cellColor={THEME.grid} fadeDistance={50} />
+                        <Grid 
+                            infiniteGrid 
+                            cellSize={1} 
+                            sectionSize={5} 
+                            sectionColor={THEME.line} 
+                            cellColor={THEME.grid} 
+                            fadeDistance={cameraView === '2D' ? 500 : 200}
+                            position={[0, 0, 0]}
+                        />
                         
                         {elements.map(el => (
                             <BimElement 
