@@ -61,30 +61,36 @@
         };
 
         const MATERIAL_LIBRARY = {
-            'Concrete': '#9e9e9e',
-            'Concrete Reinf.': '#bdbdbd',
+            'Concrete': '#eeeeee',
+            'Concrete Reinf.': '#e0e0e0',
+            'Wood Frame': '#d7ccc8',
             'Steel': '#607d8b',
             'Steel S355': '#546e7a',
-            'Wood': '#d7ccc8',
             'Composite': '#ffcc80',
             'Brick': '#ffab91',
             'Glass': '#b3e5fc',
             'Site/Earth': '#a5d6a7',
-            'Generic': '#eeeeee'
+            'Generic': '#f5f5f5'
         };
 
         const ELEMENT_DEFS = {
             WALL: { 
-                type: 'WALL', label: 'Wall System', layer: 'Architecture', prefix: 'WL',
+                type: 'WALL', label: 'Concrete Wall', layer: 'Architecture', prefix: 'CW',
                 defaultParams: { height: 3, thickness: 0.2, length: 1.0 }, 
-                defaultSpecs: { material: 'Concrete Reinf.', costPerUnit: 250, costRatio: 1.0, manualQty: 0, fireRating: '2HR', omni: '23-13 31 17' },
-                color: '#78909c' // Blueish Grey
+                defaultSpecs: { material: 'Concrete', costPerUnit: 250, costRatio: 1.0, manualQty: 0, fireRating: '2HR', omni: '23-13 31 17' },
+                color: '#eeeeee' // Greyish White Diffuse (Poche)
+            },
+            WALL_WOOD: { 
+                type: 'WALL_WOOD', label: 'Wood Wall', layer: 'Architecture', prefix: 'WW',
+                defaultParams: { height: 3, thickness: 0.15, length: 1.0 }, 
+                defaultSpecs: { material: 'Wood Frame', costPerUnit: 120, costRatio: 1.0, manualQty: 0, fireRating: '1HR', omni: '23-13 21 11' },
+                color: '#d7ccc8' // Wood/Beige
             },
             COLUMN: { 
                 type: 'COLUMN', label: 'Struct Column', layer: 'Structure', prefix: 'COL',
                 defaultParams: { height: 3, width: 0.4, depth: 0.4 },
                 defaultSpecs: { material: 'Steel S355', costPerUnit: 450, costRatio: 1.0, manualQty: 0, fireRating: '3HR', omni: '23-13 23 11' },
-                color: '#ffb74d' // Reddish Yellow (Orange)
+                color: '#ffb74d' // Reddish Yellow
             },
             FURNITURE: {
                 type: 'FURNITURE', label: 'Workstation', layer: 'Interior', prefix: 'FUR',
@@ -133,7 +139,7 @@
 
             const dims = useMemo(() => {
                 const p = element.params;
-                if (element.type === 'WALL') return [Math.max(0.1, p.length), Math.max(0.1, p.height), Math.max(0.05, p.thickness)];
+                if (element.type.startsWith('WALL')) return [Math.max(0.1, p.length), Math.max(0.1, p.height), Math.max(0.05, p.thickness)];
                 if (element.type === 'TOPOGRAPHY') return [Math.max(1, p.width), Math.max(0.1, p.height), Math.max(1, p.depth)];
                 return [Math.max(0.1, p.width), Math.max(0.1, p.height), Math.max(0.1, p.depth)];
             }, [element.params, element.type]);
@@ -199,7 +205,7 @@
 
             return (
                 <group position={[midX, h/2, midZ]} rotation={[0, angle, 0]}>
-                    <mesh>
+                    <mesh raycast={() => null}>
                         <boxGeometry args={[t, h, len]} />
                         <meshStandardMaterial color={THEME.guide} opacity={0.6} transparent roughness={0.1} />
                     </mesh>
@@ -257,7 +263,7 @@
                                     <div className="p-3 bg-white/50 rounded border border-[#3e2723]/20">
                                         <h3 className="font-bold text-sm mb-1">2. CREATION WORKFLOW</h3>
                                         <ul className="list-disc pl-4 opacity-80 space-y-1">
-                                            <li><strong>Walls:</strong> Select 'WALL' -> Click Start -> Click End. (Auto-chains for continuous walls).</li>
+                                            <li><strong>Walls:</strong> Select 'CONC' or 'WOOD' -> Click Start -> Click End.</li>
                                             <li><strong>Columns/Furniture:</strong> Select Tool -> Single Click to place.</li>
                                             <li><strong>Escape Key:</strong> Press 'ESC' to cancel current segment or exit tool.</li>
                                         </ul>
@@ -355,7 +361,7 @@
             const getAutoQty = useCallback((el) => {
                 if (!el) return 0;
                 const p = el.params;
-                if (el.type === 'WALL') return p.length * p.height * p.thickness;
+                if (el.type.startsWith('WALL')) return p.length * p.height * p.thickness;
                 if (el.type === 'TOPOGRAPHY') return p.width * p.depth * (p.height * 0.5);
                 if (el.type === 'FURNITURE') return 1;
                 return p.width * p.height * p.depth;
@@ -444,7 +450,7 @@
                     const angle = Math.atan2(dx, dz);
                     const midX = (x1 + x2)/2; const midZ = (y1 + y2)/2;
                     const offsetX = midX - 10; const offsetZ = midZ - 10;
-                    const def = ELEMENT_DEFS.WALL;
+                    const def = ELEMENT_DEFS.WALL; // Default to Concrete Wall
                     newEls.push({
                         id: crypto.randomUUID(), humanId: svgId || generateID(def.type, count++),
                         type: def.type, label: def.label, color: getSvgColor(line, def.color),
@@ -608,13 +614,13 @@
                         {mode === 'draw' && (
                             <>
                                 {drawState.active && drawState.startPoint && (
-                                    <mesh position={drawState.startPoint}>
+                                    <mesh position={drawState.startPoint} raycast={() => null}>
                                         <sphereGeometry args={[0.15]} />
                                         <meshBasicMaterial color={THEME.guide} />
                                     </mesh>
                                 )}
                                 {drawState.endPoint && (
-                                    <mesh position={drawState.endPoint}>
+                                    <mesh position={drawState.endPoint} raycast={() => null}>
                                         <sphereGeometry args={[0.1]} />
                                         <meshBasicMaterial color={THEME.selected} opacity={0.5} transparent />
                                         <Html position={[0, 0.2, 0]} center>
@@ -687,9 +693,9 @@
                 const rows = elements.map(el => {
                     const p = el.params;
                     const s = el.specs;
-                    const dimA = el.type === 'WALL' ? p.length : p.width;
+                    const dimA = el.type.startsWith('WALL') ? p.length : p.width;
                     const dimB = p.height;
-                    const dimC = el.type === 'WALL' ? p.thickness : p.depth;
+                    const dimC = el.type.startsWith('WALL') ? p.thickness : p.depth;
                     const unit = el.type === 'FURNITURE' ? 'Unit' : 'm³';
                     const autoQty = getAutoQty(el);
                     const cost = getElementCost(el);
@@ -800,6 +806,7 @@
                             <ToolBtn icon={MousePointer} active={mode==='select'} onClick={() => setMode('select')} label="SEL" />
                             <div className="w-8 border-b border-[#3e2723] opacity-20 my-1"></div>
                             <ToolBtn icon={PenTool} active={mode==='draw' && drawState.type==='WALL'} onClick={()=>{startDrawing('WALL')}} label="WALL" />
+                            <ToolBtn icon={PenTool} active={mode==='draw' && drawState.type==='WALL_WOOD'} onClick={()=>{startDrawing('WALL_WOOD')}} label="WOOD" />
                             <ToolBtn icon={Box} active={mode==='draw' && drawState.type==='COLUMN'} onClick={()=>{startDrawing('COLUMN')}} label="COL" />
                             <ToolBtn icon={Layers} active={mode==='draw' && drawState.type==='FURNITURE'} onClick={()=>{startDrawing('FURNITURE')}} label="FURN" />
                             <div className="w-8 border-b border-[#3e2723] opacity-20 my-1"></div>
@@ -881,7 +888,7 @@
                                         </Group>
 
                                         <Group title="DIMENSIONS" icon={Ruler}>
-                                            {selectedElement.type === 'WALL' ? (
+                                            {selectedElement.type.startsWith('WALL') ? (
                                                 <>
                                                     <Field label="LENGTH (m)" value={selectedElement.params.length.toFixed(2)} onChange={v => updateParam('length', v)}/>
                                                     <Field label="HEIGHT (m)" value={selectedElement.params.height} onChange={v => updateParam('height', v)}/>
