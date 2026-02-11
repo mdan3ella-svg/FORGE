@@ -184,16 +184,16 @@
             );
         };
 
-        const DrawGhost = ({ start, end, type }) => {
-            if (!start || !end || !type || type === 'TOPOGRAPHY') return null;
-            const dx = end.x - start.x;
-            const dz = end.z - start.z;
+        const DrawGhost = ({ startPoint, endPoint, type }) => {
+            if (!startPoint || !endPoint || !type || type === 'TOPOGRAPHY') return null;
+            const dx = endPoint.x - startPoint.x;
+            const dz = endPoint.z - startPoint.z;
             const len = Math.sqrt(dx*dx + dz*dz);
             if (len < 0.1) return null;
             
             const angle = Math.atan2(dx, dz);
-            const midX = (start.x + end.x)/2;
-            const midZ = (start.z + end.z)/2;
+            const midX = (startPoint.x + endPoint.x)/2;
+            const midZ = (startPoint.z + endPoint.z)/2;
             const h = ELEMENT_DEFS[type].defaultParams.height;
             const t = ELEMENT_DEFS[type].defaultParams.thickness || 0.2;
 
@@ -201,10 +201,10 @@
                 <group position={[midX, h/2, midZ]} rotation={[0, angle, 0]}>
                     <mesh>
                         <boxGeometry args={[t, h, len]} />
-                        <meshBasicMaterial color={THEME.guide} wireframe opacity={0.4} transparent />
+                        <meshStandardMaterial color={THEME.guide} opacity={0.6} transparent roughness={0.1} />
                     </mesh>
                     <Html position={[0, h/2 + 0.2, 0]} center>
-                        <div className="bg-blue-600 text-white text-xs px-1 rounded font-mono">{len.toFixed(2)}m</div>
+                        <div className="bg-blue-600 text-white text-xs px-1 rounded font-mono shadow-md">{len.toFixed(2)}m</div>
                     </Html>
                 </group>
             );
@@ -343,7 +343,7 @@
             const [selectedId, setSelectedId] = useState(null);
             const [mode, setMode] = useState('select'); 
             const [cameraView, setCameraView] = useState('3D');
-            const [drawState, setDrawState] = useState({ active: false, start: null, curr: null, type: null });
+            const [drawState, setDrawState] = useState({ active: false, startPoint: null, endPoint: null, type: null });
             const [showImport, setShowImport] = useState(false);
             const [showHelp, setShowHelp] = useState(true);
             const [svgInput, setSvgInput] = useState(SVG_DEMO);
@@ -505,13 +505,16 @@
                     setElements(prev => [...prev, el]);
                     setSelectedId(el.id);
                 } else {
-                    if (!drawState.start) {
-                        setDrawState(prev => ({ ...prev, active: true, start: pt, curr: pt }));
+                    if (!drawState.active) {
+                        // Start Drawing
+                        setDrawState(prev => ({ ...prev, active: true, startPoint: pt, endPoint: pt }));
                     } else {
-                        const start = drawState.start;
+                        // Finish Segment and Chain
+                        const start = drawState.startPoint;
                         const end = pt;
                         const dx = end.x - start.x; const dz = end.z - start.z;
                         const len = Math.sqrt(dx*dx + dz*dz);
+                        
                         if(len > 0.1) {
                             const angle = Math.atan2(dx, dz);
                             const midX = (start.x + end.x)/2; const midZ = (start.z + end.z)/2;
@@ -526,27 +529,53 @@
                             };
                             setElements(prev => [...prev, el]);
                             setSelectedId(el.id);
-                            setDrawState(prev => ({ ...prev, start: end, curr: end }));
+                            
+                            // CHAINING LOGIC: Set previous end as new start
+                            setDrawState(prev => ({ ...prev, startPoint: end, endPoint: end }));
                         }
                     }
                 }
             };
 
-            const SceneContent = () => {
-                const { camera } = useThree();
-                const snap = (v) => Math.round(v*2)/2;
+            const SceneManager = ({ 
+                elements, setElements, selectedId, setSelectedId, mode, setMode,
+                drawState, setDrawState, cameraView
+            }) => {
+                const snapToGrid = (val) => Math.round(val * 2) / 2;
+
+                useEffect(() => {
+                    const handleKeyDown = (e) => {
+                        if (e.key === 'Escape') {
+                            if (drawState.active && drawState.startPoint) {
+                                // Cancel current segment, keep tool
+                                setDrawState(prev => ({ ...prev, active: false, startPoint: null, endPoint: null }));
+                            } else {
+                                // Exit tool
+                                setDrawState({ active: false, startPoint: null, endPoint: null, type: null });
+                                setMode('select');
+                            }
+                        }
+                    };
+                    window.addEventListener('keydown', handleKeyDown);
+                    return () => window.removeEventListener('keydown', handleKeyDown);
+                }, [drawState, setMode]);
 
                 const onMove = (e) => {
                     if (mode === 'draw') {
                         e.stopPropagation();
-                        setDrawState(p => ({ ...p, curr: new THREE.Vector3(snap(e.point.x), 0, snap(e.point.z)) }));
+                        const snapped = new THREE.Vector3(snapToGrid(e.point.x), 0, snapToGrid(e.point.z));
+                        setDrawState(prev => ({ ...prev, endPoint: snapped }));
                     }
                 };
 
                 const onClick = (e) => {
                     e.stopPropagation();
-                    if (mode === 'draw') handleDrawClick(new THREE.Vector3(snap(e.point.x), 0, snap(e.point.z)));
-                    else if (selectedId) setSelectedId(null);
+                    if (mode === 'draw') {
+                        const snapped = new THREE.Vector3(snapToGrid(e.point.x), 0, snapToGrid(e.point.z));
+                        handleDrawClick(snapped);
+                    } else if (selectedId) {
+                        setSelectedId(null);
+                    }
                 };
 
                 const onTransform = useCallback((id, obj) => {
@@ -574,12 +603,28 @@
                             />
                         ))}
 
-                        {mode === 'draw' && drawState.active && <DrawGhost start={drawState.start} end={drawState.curr} type={drawState.type} />}
-                        {mode === 'draw' && drawState.curr && (
-                            <mesh position={drawState.curr}>
-                                <sphereGeometry args={[0.15]} />
-                                <meshBasicMaterial color={THEME.guide} />
-                            </mesh>
+                        {mode === 'draw' && drawState.active && <DrawGhost startPoint={drawState.startPoint} endPoint={drawState.endPoint} type={drawState.type} />}
+                        
+                        {mode === 'draw' && (
+                            <>
+                                {drawState.active && drawState.startPoint && (
+                                    <mesh position={drawState.startPoint}>
+                                        <sphereGeometry args={[0.15]} />
+                                        <meshBasicMaterial color={THEME.guide} />
+                                    </mesh>
+                                )}
+                                {drawState.endPoint && (
+                                    <mesh position={drawState.endPoint}>
+                                        <sphereGeometry args={[0.1]} />
+                                        <meshBasicMaterial color={THEME.selected} opacity={0.5} transparent />
+                                        <Html position={[0, 0.2, 0]} center>
+                                            <div className="text-[9px] bg-black/50 text-white px-1 rounded font-mono pointer-events-none">
+                                                {drawState.endPoint.x.toFixed(1)}, {drawState.endPoint.z.toFixed(1)}
+                                            </div>
+                                        </Html>
+                                    </mesh>
+                                )}
+                            </>
                         )}
                     </>
                 );
@@ -667,6 +712,12 @@
                 a.click();
             };
 
+            const startDrawing = (type) => {
+                setSelectedId(null);
+                setMode('draw');
+                setDrawState({ active: false, startPoint: null, endPoint: null, type });
+            };
+
             return (
                 <div className="w-full h-screen bg-[#fdf5e6] text-[#3e2723] font-mono flex flex-col overflow-hidden relative select-none">
                     
@@ -748,9 +799,9 @@
                         <div className="w-20 glass-panel rounded-2xl flex flex-col items-center py-4 gap-2 shadow-lg z-0">
                             <ToolBtn icon={MousePointer} active={mode==='select'} onClick={() => setMode('select')} label="SEL" />
                             <div className="w-8 border-b border-[#3e2723] opacity-20 my-1"></div>
-                            <ToolBtn icon={PenTool} active={mode==='draw' && drawState.type==='WALL'} onClick={()=>{setMode('draw'); setDrawState({active:false, type:'WALL'})}} label="WALL" />
-                            <ToolBtn icon={Box} active={mode==='draw' && drawState.type==='COLUMN'} onClick={()=>{setMode('draw'); setDrawState({active:false, type:'COLUMN'})}} label="COL" />
-                            <ToolBtn icon={Layers} active={mode==='draw' && drawState.type==='FURNITURE'} onClick={()=>{setMode('draw'); setDrawState({active:false, type:'FURNITURE'})}} label="FURN" />
+                            <ToolBtn icon={PenTool} active={mode==='draw' && drawState.type==='WALL'} onClick={()=>{startDrawing('WALL')}} label="WALL" />
+                            <ToolBtn icon={Box} active={mode==='draw' && drawState.type==='COLUMN'} onClick={()=>{startDrawing('COLUMN')}} label="COL" />
+                            <ToolBtn icon={Layers} active={mode==='draw' && drawState.type==='FURNITURE'} onClick={()=>{startDrawing('FURNITURE')}} label="FURN" />
                             <div className="w-8 border-b border-[#3e2723] opacity-20 my-1"></div>
                             <ToolBtn icon={Axis3d} active={mode==='translate'} onClick={() => setMode('translate')} label="MOV" />
                             <ToolBtn icon={ArrowUpCircle} active={mode==='rotate'} onClick={() => setMode('rotate')} label="ROT" />
@@ -763,7 +814,13 @@
                                 <color attach="background" args={['#fdf6e3']} />
                                 {cameraView === '3D' ? <PerspectiveCamera makeDefault position={[10, 15, 10]} fov={45} /> : <OrthographicCamera makeDefault position={[0, 50, 0]} zoom={30} />}
                                 <OrbitControls makeDefault enableRotate={cameraView==='3D'} enableDamping={false} />
-                                <SceneContent />
+                                <SceneManager 
+                                    elements={elements} setElements={setElements}
+                                    selectedId={selectedId} setSelectedId={setSelectedId}
+                                    mode={mode} setMode={setMode}
+                                    drawState={drawState} setDrawState={setDrawState}
+                                    cameraView={cameraView}
+                                />
                             </Canvas>
                         </div>
 
