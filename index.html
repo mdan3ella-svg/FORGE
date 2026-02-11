@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FORGE | SIM-CAL AUDITOR</title>
+    <title>FORGE | SKELETON SHELL</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -28,10 +28,11 @@
 
     <style>
         ::-webkit-scrollbar { width: 4px; height: 4px; }
-        ::-webkit-scrollbar-track { background: #fdf5e6; }
-        ::-webkit-scrollbar-thumb { background: #3e2723; border-radius: 2px; }
-        body { overflow: hidden; background-color: #fdf5e6; }
-        .glass-panel { background: rgba(255, 255, 255, 0.6); backdrop-filter: blur(8px); border: 2px solid #3e2723; }
+        ::-webkit-scrollbar-track { background: #e0e0e0; }
+        ::-webkit-scrollbar-thumb { background: #455a64; border-radius: 2px; }
+        body { overflow: hidden; background-color: #cfd8dc; }
+        .glass-panel { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); border: 1px solid #455a64; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .mono-font { font-family: 'Courier New', Courier, monospace; }
     </style>
 </head>
 <body>
@@ -46,67 +47,58 @@
         import { 
             Box, Layers, PenTool, Trash2, Download, MousePointer, Undo,
             Maximize, Settings, Save, ArrowUpCircle, Axis3d, Ruler, 
-            DollarSign, FileText, ScanLine, Upload, Zap, Activity, Image as ImageIcon, FileImage, Palette, Link as LinkIcon, Calculator, HelpCircle, FileSpreadsheet
+            DollarSign, FileText, ScanLine, Upload, Zap, Activity, Image as ImageIcon, FileImage, Palette, Link as LinkIcon, Calculator, HelpCircle, FileSpreadsheet, Frame, CircleDot
         } from 'lucide-react';
         import * as THREE from 'three';
 
         // --- 1. CONFIGURATION ---
 
         const THEME = {
-            bg: '#fdf5e6',
-            line: '#3e2723',
-            selected: '#ff6d00',
-            grid: '#a1887f',
-            guide: '#2962ff'
+            bg: '#cfd8dc',      // Technical Grey
+            line: '#263238',    // Dark Blueprint
+            selected: '#ff3d00', // Alert Orange
+            grid: '#90a4ae',    // Drafting Grid
+            guide: '#2962ff'    // Interaction Blue
         };
 
         const MATERIAL_LIBRARY = {
-            'Concrete': '#eeeeee',
-            'Concrete Reinf.': '#e0e0e0',
-            'Wood Frame': '#d7ccc8',
-            'Steel': '#607d8b',
-            'Steel S355': '#546e7a',
-            'Composite': '#ffcc80',
-            'Brick': '#ffab91',
-            'Glass': '#b3e5fc',
-            'Site/Earth': '#a5d6a7',
+            'Reinf. Concrete': '#cfd8dc',
+            'Engineered Timber': '#d7ccc8',
+            'Steel H-Section': '#546e7a',
+            'Mass Timber': '#a1887f',
+            'Precast': '#eceff1',
+            'Site/Earth': '#81c784',
             'Generic': '#f5f5f5'
         };
 
         const ELEMENT_DEFS = {
-            WALL: { 
-                type: 'WALL', label: 'Concrete Wall', layer: 'Architecture', prefix: 'CW',
-                defaultParams: { height: 3, thickness: 0.2, length: 1.0 }, 
-                defaultSpecs: { material: 'Concrete', costPerUnit: 250, costRatio: 1.0, manualQty: 0, fireRating: '2HR', omni: '23-13 31 17' },
-                color: '#eeeeee' 
+            SHELL_CONCRETE: { 
+                type: 'SHELL_CONCRETE', label: 'Concrete Shell', layer: 'Enclosure', prefix: 'SH-C',
+                defaultParams: { height: 3.5, thickness: 0.3, length: 1.0 }, 
+                defaultSpecs: { material: 'Reinf. Concrete', costPerUnit: 350, costRatio: 1.0, manualQty: 0, fireRating: '3HR', omni: '21-00 00' },
+                color: '#b0bec5' 
             },
-            WALL_WOOD: { 
-                type: 'WALL_WOOD', label: 'Wood Wall', layer: 'Architecture', prefix: 'WW',
-                defaultParams: { height: 3, thickness: 0.15, length: 1.0 }, 
-                defaultSpecs: { material: 'Wood Frame', costPerUnit: 120, costRatio: 1.0, manualQty: 0, fireRating: '1HR', omni: '23-13 21 11' },
+            SHELL_TIMBER: { 
+                type: 'SHELL_TIMBER', label: 'Timber Frame', layer: 'Partition', prefix: 'SH-T',
+                defaultParams: { height: 3.0, thickness: 0.15, length: 1.0 }, 
+                defaultSpecs: { material: 'Engineered Timber', costPerUnit: 180, costRatio: 1.0, manualQty: 0, fireRating: '1HR', omni: '21-00 00' },
                 color: '#d7ccc8' 
             },
-            COLUMN: { 
-                type: 'COLUMN', label: 'Struct Column', layer: 'Structure', prefix: 'COL',
-                defaultParams: { height: 3, width: 0.4, depth: 0.4 },
-                defaultSpecs: { material: 'Steel S355', costPerUnit: 450, costRatio: 1.0, manualQty: 0, fireRating: '3HR', omni: '23-13 23 11' },
-                color: '#ffb74d'
-            },
-            FURNITURE: {
-                type: 'FURNITURE', label: 'Workstation', layer: 'Interior', prefix: 'FUR',
-                defaultParams: { height: 0.75, width: 1.6, depth: 0.8 },
-                defaultSpecs: { material: 'Composite', costPerUnit: 800, costRatio: 1.0, manualQty: 0, fireRating: 'N/A', omni: '23-40 20 00' },
-                color: '#81c784'
+            STRUCT_NODE: { 
+                type: 'STRUCT_NODE', label: 'Struct Node', layer: 'Skeleton', prefix: 'ND',
+                defaultParams: { height: 3.5, width: 0.5, depth: 0.5 },
+                defaultSpecs: { material: 'Steel H-Section', costPerUnit: 600, costRatio: 1.0, manualQty: 0, fireRating: '3HR', omni: '23-00 00' },
+                color: '#ff7043'
             },
             TOPOGRAPHY: {
-                type: 'TOPOGRAPHY', label: 'Height Map Terrain', layer: 'Site', prefix: 'TER',
-                defaultParams: { width: 20, depth: 20, height: 5, segments: 128 }, 
+                type: 'TOPOGRAPHY', label: 'Site Mesh', layer: 'Site', prefix: 'TER',
+                defaultParams: { width: 40, depth: 40, height: 8, segments: 128 }, 
                 defaultSpecs: { material: 'Site/Earth', costPerUnit: 45, costRatio: 1.0, manualQty: 0, fireRating: 'N/A', omni: '31-00 00 00' },
                 color: '#a5d6a7'
             }
         };
 
-        const SVG_DEMO = `<svg width="200" height="200" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">\n  <line id="Ext-Wall-01" x1="2" y1="2" x2="18" y2="2" stroke="#5d4037" stroke-width="2"/>\n  <circle id="Col-A1" cx="2" cy="18" r="0.5" fill="#d32f2f" />\n  <rect id="Desk-01" x="8" y="8" width="4" height="2" fill="#1976d2" />\n</svg>`;
+        const SVG_DEMO = `<svg width="200" height="200" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">\n  <line id="Shell-01" x1="2" y1="2" x2="18" y2="2" stroke="#455a64" stroke-width="2"/>\n  <circle id="Node-01" cx="2" cy="18" r="0.5" fill="#d84315" />\n</svg>`;
 
         // --- 2. ENGINE COMPONENTS ---
 
@@ -139,7 +131,7 @@
 
             const dims = useMemo(() => {
                 const p = element.params;
-                if (element.type.startsWith('WALL')) return [Math.max(0.1, p.length), Math.max(0.1, p.height), Math.max(0.05, p.thickness)];
+                if (element.type.startsWith('SHELL')) return [Math.max(0.1, p.length), Math.max(0.1, p.height), Math.max(0.05, p.thickness)];
                 if (element.type === 'TOPOGRAPHY') return [Math.max(1, p.width), Math.max(0.1, p.height), Math.max(1, p.depth)];
                 return [Math.max(0.1, p.width), Math.max(0.1, p.height), Math.max(0.1, p.depth)];
             }, [element.params, element.type]);
@@ -151,7 +143,6 @@
                 <group position={element.position} rotation={element.rotation}>
                     <group
                         ref={setMesh}
-                        // Disable raycast when drawing to prevent jumping cursors
                         raycast={mode === 'draw' ? () => null : undefined} 
                         onClick={(e) => { 
                             if(mode !== 'draw') {
@@ -167,10 +158,10 @@
                         ) : (
                             <mesh>
                                 <boxGeometry args={dims} />
-                                <meshStandardMaterial color={displayColor} roughness={0.6} metalness={0.1} />
+                                <meshStandardMaterial color={displayColor} roughness={0.5} metalness={0.2} />
                                 <lineSegments>
                                     <edgesGeometry args={[new THREE.BoxGeometry(...dims)]} />
-                                    <lineBasicMaterial color={THEME.line} linewidth={1} transparent opacity={0.3} />
+                                    <lineBasicMaterial color={THEME.line} linewidth={1} transparent opacity={0.5} />
                                 </lineSegments>
                             </mesh>
                         )}
@@ -179,8 +170,8 @@
                     {isSelected && (
                         <Html position={[0, dims[1]/2 + 0.5, 0]} center>
                             <div className="flex flex-col items-center pointer-events-none z-50">
-                                <div className="bg-[#3e2723] text-white text-[10px] font-mono px-2 py-0.5 rounded shadow-lg whitespace-nowrap">
-                                    {element.humanId} | {element.specs.material}
+                                <div className="bg-[#263238] text-white text-[10px] mono-font px-2 py-0.5 rounded shadow-lg whitespace-nowrap">
+                                    {element.humanId}
                                 </div>
                             </div>
                         </Html>
@@ -195,6 +186,7 @@
             );
         });
 
+        // Updated Ghost with Live Calculation
         const DrawGhost = ({ startPoint, endPoint, type }) => {
             if (!startPoint || !endPoint || !type || type === 'TOPOGRAPHY') return null;
             const dx = endPoint.x - startPoint.x;
@@ -208,14 +200,30 @@
             const h = ELEMENT_DEFS[type].defaultParams.height;
             const t = ELEMENT_DEFS[type].defaultParams.thickness || 0.2;
 
+            // Live Calculation
+            const vol = len * h * t;
+            const rate = ELEMENT_DEFS[type].defaultSpecs.costPerUnit;
+            const estimatedCost = vol * rate;
+
             return (
                 <group position={[midX, h/2, midZ]} rotation={[0, angle, 0]}>
                     <mesh raycast={() => null}>
                         <boxGeometry args={[t, h, len]} />
-                        <meshStandardMaterial color={THEME.guide} opacity={0.6} transparent roughness={0.1} />
+                        <meshStandardMaterial color={THEME.guide} opacity={0.4} transparent roughness={0.1} />
+                        <lineSegments>
+                            <edgesGeometry args={[new THREE.BoxGeometry(t, h, len)]} />
+                            <lineBasicMaterial color={THEME.guide} linewidth={1} />
+                        </lineSegments>
                     </mesh>
-                    <Html position={[0, h/2 + 0.2, 0]} center>
-                        <div className="bg-blue-600 text-white text-xs px-1 rounded font-mono shadow-md">{len.toFixed(2)}m</div>
+                    <Html position={[0, h/2 + 0.5, 0]} center>
+                        <div className="flex flex-col items-center gap-1">
+                            <div className="bg-blue-600 text-white text-xs px-2 py-1 rounded mono-font shadow-md font-bold">
+                                {len.toFixed(2)}m
+                            </div>
+                            <div className="bg-green-700 text-white text-[10px] px-2 py-0.5 rounded mono-font shadow-md">
+                                ${estimatedCost.toFixed(0)}
+                            </div>
+                        </div>
                     </Html>
                 </group>
             );
@@ -228,119 +236,52 @@
 
             return (
                 <div className="absolute inset-0 z-50 bg-black/60 flex items-center justify-center p-8 backdrop-blur-sm">
-                    <div className="bg-[#fdf5e6] border-4 border-[#3e2723] rounded-2xl p-6 w-full max-w-2xl shadow-2xl flex flex-col max-h-full overflow-hidden">
+                    <div className="bg-[#eceff1] border-4 border-[#263238] rounded-2xl p-6 w-full max-w-2xl shadow-2xl flex flex-col max-h-full overflow-hidden">
                         <div className="flex justify-between items-start mb-4 shrink-0">
-                            <h2 className="text-xl font-black flex items-center gap-2 text-[#3e2723]">
-                                <HelpCircle className="text-blue-600" /> FORGE INFORMATION
+                            <h2 className="text-xl font-black flex items-center gap-2 text-[#263238]">
+                                <HelpCircle className="text-blue-700" /> SYSTEM MANUAL
                             </h2>
-                            <button onClick={onClose} className="text-[#3e2723] hover:text-red-600 font-bold">✕</button>
+                            <button onClick={onClose} className="text-[#263238] hover:text-red-600 font-bold">✕</button>
                         </div>
 
-                        {/* Tabs */}
-                        <div className="flex gap-4 mb-4 border-b-2 border-[#3e2723]/10 pb-2 shrink-0">
-                            <button 
-                                onClick={() => setTab('GUIDE')}
-                                className={`text-xs font-bold px-3 py-1 rounded-full transition ${tab === 'GUIDE' ? 'bg-[#3e2723] text-[#fdf5e6]' : 'hover:bg-[#3e2723]/10'}`}
-                            >
-                                USER GUIDE
-                            </button>
-                            <button 
-                                onClick={() => setTab('ABOUT')}
-                                className={`text-xs font-bold px-3 py-1 rounded-full transition ${tab === 'ABOUT' ? 'bg-[#3e2723] text-[#fdf5e6]' : 'hover:bg-[#3e2723]/10'}`}
-                            >
-                                ABOUT & TECH SPECS
-                            </button>
+                        <div className="flex gap-4 mb-4 border-b-2 border-[#263238]/10 pb-2 shrink-0">
+                            <button onClick={() => setTab('GUIDE')} className={`text-xs font-bold px-3 py-1 rounded-full transition ${tab === 'GUIDE' ? 'bg-[#263238] text-white' : 'hover:bg-gray-300'}`}>WORKFLOW</button>
+                            <button onClick={() => setTab('ABOUT')} className={`text-xs font-bold px-3 py-1 rounded-full transition ${tab === 'ABOUT' ? 'bg-[#263238] text-white' : 'hover:bg-gray-300'}`}>KERNEL SPECS</button>
                         </div>
                         
-                        <div className="overflow-y-auto pr-2 space-y-4 text-xs font-mono text-[#3e2723]">
+                        <div className="overflow-y-auto pr-2 space-y-4 text-xs mono-font text-[#263238]">
                             {tab === 'GUIDE' ? (
                                 <>
-                                    <div className="p-3 bg-white/50 rounded border border-[#3e2723]/20">
-                                        <h3 className="font-bold text-sm mb-1">1. NAVIGATION CONTROLS</h3>
+                                    <div className="p-3 bg-white rounded border border-[#263238]/20">
+                                        <h3 className="font-bold text-sm mb-1">1. SKELETON MODELING</h3>
+                                        <p className="mb-2 opacity-80">This tool uses a "vector-to-plane" logic. You draw 2D lines that instantly become 3D quantified shells.</p>
                                         <ul className="list-disc pl-4 opacity-80 space-y-1">
-                                            <li><strong>Rotate:</strong> Left Click + Drag (3D Mode)</li>
-                                            <li><strong>Pan:</strong> Right Click + Drag</li>
-                                            <li><strong>Zoom:</strong> Scroll Wheel</li>
-                                            <li><strong>View Toggle:</strong> Use buttons in top-left for 2D Plan / 3D Model.</li>
+                                            <li><strong>Shell (Concrete/Timber):</strong> Click Start -> Click End. The system chains automatically for perimeters.</li>
+                                            <li><strong>Nodes (Structure):</strong> Single click to place vertical structural elements.</li>
                                         </ul>
                                     </div>
-
-                                    <div className="p-3 bg-white/50 rounded border border-[#3e2723]/20">
-                                        <h3 className="font-bold text-sm mb-1">2. CREATION WORKFLOW</h3>
-                                        <ul className="list-disc pl-4 opacity-80 space-y-1">
-                                            <li><strong>Walls:</strong> Select 'CONC' or 'WOOD' -> Click Start -> Click End.</li>
-                                            <li><strong>Columns/Furniture:</strong> Select Tool -> Single Click to place.</li>
-                                            <li><strong>Escape Key:</strong> Press 'ESC' to cancel current segment or exit tool.</li>
-                                        </ul>
-                                    </div>
-
-                                    <div className="p-3 bg-white/50 rounded border border-[#3e2723]/20">
-                                        <h3 className="font-bold text-sm mb-1">3. DATA & ANALYSIS</h3>
-                                        <ul className="list-disc pl-4 opacity-80 space-y-1">
-                                            <li><strong>Select:</strong> Use 'SEL' tool -> Click any object.</li>
-                                            <li><strong>Edit:</strong> Use Right Panel to change Dimensions, Materials, and Parents.</li>
-                                            <li><strong>BoQ:</strong> Adjust 'Manual Qty' or 'Cost Ratio' for precise budgeting.</li>
-                                        </ul>
-                                    </div>
-
-                                    <div className="p-3 bg-white/50 rounded border border-[#3e2723]/20">
-                                        <h3 className="font-bold text-sm mb-1">4. AUTOMATION</h3>
-                                        <ul className="list-disc pl-4 opacity-80 space-y-1">
-                                            <li><strong>Import Data:</strong> Upload .SVG (Vector extrude) or .JPG/PNG (Terrain map).</li>
-                                            <li><strong>Export:</strong> Download JSON data or Cost Schedule (.CSV).</li>
-                                        </ul>
+                                    <div className="p-3 bg-white rounded border border-[#263238]/20">
+                                        <h3 className="font-bold text-sm mb-1">2. LIVE SIM-CAL</h3>
+                                        <p className="opacity-80">Cost is not an afterthought. As you drag your cursor, the tool calculates the Volume * Unit Cost in real-time, displaying the financial impact before you even click.</p>
                                     </div>
                                 </>
                             ) : (
                                 <>
-                                    <div className="p-4 bg-blue-50/50 rounded border border-blue-200">
-                                        <h3 className="font-bold text-sm mb-2 text-blue-900">WHAT IS FORGE?</h3>
-                                        <p className="mb-2 leading-relaxed">
-                                            FORGE | SIM-CAL AUDITOR is a browser-based <strong>BIM (Building Information Modeling) Kernel</strong> designed to bridge the gap between initial sketching and data-rich analysis.
-                                        </p>
-                                        <p className="leading-relaxed">
-                                            It allows architects, developers, and project managers to move from "dumb lines" to "intelligent systems" instantly, bringing cost awareness to the very first phase of design.
-                                        </p>
-                                    </div>
-
-                                    <div className="p-3 bg-white/50 rounded border border-[#3e2723]/20">
-                                        <h3 className="font-bold text-sm mb-1">TECHNICAL CAPABILITIES</h3>
-                                        <ul className="list-disc pl-4 opacity-80 space-y-2">
-                                            <li>
-                                                <strong>Hyper-Extrude Engine:</strong> A vector parsing algorithm that converts standard SVG paths into parametric 3D meshes (Walls, Columns) while preserving layer metadata.
-                                            </li>
-                                            <li>
-                                                <strong>SIM-CAL Core:</strong> A real-time arithmetic engine that binds geometric properties (Volume, Area) to financial variables (Unit Cost, Waste Ratio) for instant HUD feedback.
-                                            </li>
-                                            <li>
-                                                <strong>Terrain Synthesis:</strong> Uses pixel-brightness interpretation to generate 3D displacement maps from standard .JPG/.PNG images for site analysis.
-                                            </li>
-                                            <li>
-                                                <strong>Data Interoperability:</strong> Built on a JSON state architecture allowing for seamless export to CSV (Excel) and open data formats.
-                                            </li>
+                                    <div className="p-3 bg-white rounded border border-[#263238]/20">
+                                        <h3 className="font-bold text-sm mb-1">FORGE KERNEL ARCHITECTURE</h3>
+                                        <p className="mb-2 opacity-80">A streamlined BIM shell designer focusing on the intersection of Architecture, Structure, and Finance.</p>
+                                        <ul className="list-disc pl-4 opacity-80 space-y-1">
+                                            <li><strong>Entity:</strong> Shell (Enclosure) & Node (Support)</li>
+                                            <li><strong>Data:</strong> Parametric JSON State</li>
+                                            <li><strong>Output:</strong> Geometric Mesh + CSV Cost Schedule</li>
                                         </ul>
-                                    </div>
-
-                                    <div className="p-3 bg-white/50 rounded border border-[#3e2723]/20">
-                                        <h3 className="font-bold text-sm mb-1">USE CASE STUDY: RAPID FEASIBILITY</h3>
-                                        <div className="pl-2 border-l-2 border-[#3e2723]/20">
-                                            <p className="mb-1"><strong>Scenario:</strong> A developer needs to validate the budget for a 2000m² mixed-use site before commissioning a full team.</p>
-                                            <p className="mb-1"><strong>Process:</strong></p>
-                                            <ol className="list-decimal pl-5 mb-1 opacity-80">
-                                                <li>Upload Site Plan SVG to FORGE.</li>
-                                                <li>Auto-extrude massing walls.</li>
-                                                <li>Import satellite height-map for terrain context.</li>
-                                                <li>Adjust 'Cost Ratio' to 1.2 (20% overhead).</li>
-                                            </ol>
-                                            <p><strong>Outcome:</strong> A precise Bill of Quantities (BoQ) and Visual Model generated in &lt;15 minutes.</p>
-                                        </div>
                                     </div>
                                 </>
                             )}
                         </div>
 
-                        <button onClick={onClose} className="mt-6 w-full py-3 bg-[#3e2723] text-[#fdf5e6] font-bold rounded-xl hover:bg-[#5d4037] transition shrink-0">
-                            RETURN TO EDITOR
+                        <button onClick={onClose} className="mt-6 w-full py-3 bg-[#263238] text-white font-bold rounded-xl hover:bg-[#37474f] transition shrink-0">
+                            INITIALIZE SYSTEM
                         </button>
                     </div>
                 </div>
@@ -362,13 +303,11 @@
 
             const selectedElement = useMemo(() => elements.find(e => e.id === selectedId), [elements, selectedId]);
 
-            // --- ANALYSIS & BOQ ---
             const getAutoQty = useCallback((el) => {
                 if (!el) return 0;
                 const p = el.params;
-                if (el.type.startsWith('WALL')) return p.length * p.height * p.thickness;
+                if (el.type.startsWith('SHELL')) return p.length * p.height * p.thickness;
                 if (el.type === 'TOPOGRAPHY') return p.width * p.depth * (p.height * 0.5);
-                if (el.type === 'FURNITURE') return 1;
                 return p.width * p.height * p.depth;
             }, []);
 
@@ -395,42 +334,9 @@
                 return { vol, cost };
             }, [elements, getAutoQty, getElementCost]);
 
-            // --- HELPERS ---
             const generateID = (type, count) => {
                 const def = ELEMENT_DEFS[type] || { prefix: 'OBJ' };
                 return `${def.prefix}-${(count + 1).toString().padStart(3, '0')}`;
-            };
-
-            // --- ACTIONS ---
-
-            const handleFileSelect = (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                const reader = new FileReader();
-                
-                if (file.type.includes('svg')) {
-                    reader.onload = (ev) => { setSvgInput(ev.target.result); };
-                    reader.readAsText(file);
-                } 
-                else if (file.type.includes('image')) {
-                    reader.onload = (ev) => {
-                        const dataUrl = ev.target.result;
-                        const def = ELEMENT_DEFS.TOPOGRAPHY;
-                        const newEl = {
-                            id: crypto.randomUUID(), 
-                            humanId: generateID('TOPOGRAPHY', elements.length),
-                            type: def.type, label: `${def.label} (${file.name})`, color: def.color,
-                            params: { ...def.defaultParams },
-                            specs: { ...def.defaultSpecs },
-                            data: { textureUrl: dataUrl }, 
-                            position: [0, 0, 0], rotation: [0, 0, 0],
-                            parentId: null
-                        };
-                        setElements(prev => [...prev, newEl]);
-                        setShowImport(false);
-                    };
-                    reader.readAsDataURL(file);
-                }
             };
 
             const parseSVG = () => {
@@ -439,73 +345,52 @@
                 const newEls = [];
                 let count = elements.length;
                 
-                const getSvgColor = (el, fallback) => {
-                    return el.getAttribute('stroke') || el.getAttribute('fill') || fallback;
-                }
-
                 doc.querySelectorAll('line').forEach(line => {
-                    const x1 = parseFloat(line.getAttribute('x1'));
-                    const y1 = parseFloat(line.getAttribute('y1'));
-                    const x2 = parseFloat(line.getAttribute('x2'));
-                    const y2 = parseFloat(line.getAttribute('y2'));
-                    const svgId = line.getAttribute('id');
+                    const x1 = parseFloat(line.getAttribute('x1')); const y1 = parseFloat(line.getAttribute('y1'));
+                    const x2 = parseFloat(line.getAttribute('x2')); const y2 = parseFloat(line.getAttribute('y2'));
                     if(isNaN(x1)) return;
                     const dx = x2 - x1; const dz = y2 - y1;
                     const len = Math.sqrt(dx*dx + dz*dz);
                     const angle = Math.atan2(dx, dz);
                     const midX = (x1 + x2)/2; const midZ = (y1 + y2)/2;
                     const offsetX = midX - 10; const offsetZ = midZ - 10;
-                    const def = ELEMENT_DEFS.WALL; // Default to Concrete Wall
+                    const def = ELEMENT_DEFS.SHELL_CONCRETE;
                     newEls.push({
-                        id: crypto.randomUUID(), humanId: svgId || generateID(def.type, count++),
-                        type: def.type, label: def.label, color: getSvgColor(line, def.color),
-                        params: { ...def.defaultParams, length: len },
-                        specs: { ...def.defaultSpecs },
-                        position: [offsetX, def.defaultParams.height/2, offsetZ],
-                        rotation: [0, angle, 0], parentId: null
+                        id: crypto.randomUUID(), humanId: generateID(def.type, count++),
+                        type: def.type, label: def.label, color: def.color,
+                        params: { ...def.defaultParams, length: len }, specs: { ...def.defaultSpecs },
+                        position: [offsetX, def.defaultParams.height/2, offsetZ], rotation: [0, angle, 0], parentId: null
                     });
                 });
-
-                doc.querySelectorAll('circle').forEach(circ => {
-                    const cx = parseFloat(circ.getAttribute('cx')) - 10;
-                    const cy = parseFloat(circ.getAttribute('cy')) - 10;
-                    const svgId = circ.getAttribute('id');
-                    const def = ELEMENT_DEFS.COLUMN;
-                    newEls.push({
-                        id: crypto.randomUUID(), humanId: svgId || generateID(def.type, count++),
-                        type: def.type, label: def.label, color: getSvgColor(circ, def.color),
-                        params: { ...def.defaultParams },
-                        specs: { ...def.defaultSpecs },
-                        position: [cx, def.defaultParams.height/2, cy],
-                        rotation: [0, 0, 0], parentId: null
-                    });
-                });
-
-                doc.querySelectorAll('rect').forEach(rect => {
-                    const x = parseFloat(rect.getAttribute('x'));
-                    const y = parseFloat(rect.getAttribute('y'));
-                    const w = parseFloat(rect.getAttribute('width'));
-                    const h = parseFloat(rect.getAttribute('height'));
-                    const svgId = rect.getAttribute('id');
-                    const midX = x + w/2 - 10; const midZ = y + h/2 - 10;
-                    const def = ELEMENT_DEFS.FURNITURE;
-                    newEls.push({
-                        id: crypto.randomUUID(), humanId: svgId || generateID(def.type, count++),
-                        type: def.type, label: def.label, color: getSvgColor(rect, def.color),
-                        params: { ...def.defaultParams, width: w, depth: h },
-                        specs: { ...def.defaultSpecs },
-                        position: [midX, def.defaultParams.height/2, midZ],
-                        rotation: [0, 0, 0], parentId: null
-                    });
-                });
-
+                // Simplified SVG parsing for demo...
                 setElements(prev => [...prev, ...newEls]);
                 setShowImport(false);
             };
 
+            const handleFileSelect = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                if (file.type.includes('image')) {
+                    reader.onload = (ev) => {
+                        const dataUrl = ev.target.result;
+                        const def = ELEMENT_DEFS.TOPOGRAPHY;
+                        const newEl = {
+                            id: crypto.randomUUID(), humanId: generateID('TOPOGRAPHY', elements.length),
+                            type: def.type, label: `${def.label} (${file.name})`, color: def.color,
+                            params: { ...def.defaultParams }, specs: { ...def.defaultSpecs },
+                            data: { textureUrl: dataUrl }, position: [0, 0, 0], rotation: [0, 0, 0], parentId: null
+                        };
+                        setElements(prev => [...prev, newEl]);
+                        setShowImport(false);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+
             const handleDrawClick = (pt) => {
                 const count = elements.length;
-                if (drawState.type === 'COLUMN' || drawState.type === 'FURNITURE') {
+                if (drawState.type === 'STRUCT_NODE') {
                     const def = ELEMENT_DEFS[drawState.type];
                     const el = {
                         id: crypto.randomUUID(), humanId: generateID(def.type, count),
@@ -517,10 +402,8 @@
                     setSelectedId(el.id);
                 } else {
                     if (!drawState.active) {
-                        // Start Drawing
                         setDrawState(prev => ({ ...prev, active: true, startPoint: pt, endPoint: pt }));
                     } else {
-                        // Finish Segment and Chain
                         const start = drawState.startPoint;
                         const end = pt;
                         const dx = end.x - start.x; const dz = end.z - start.z;
@@ -540,8 +423,6 @@
                             };
                             setElements(prev => [...prev, el]);
                             setSelectedId(el.id);
-                            
-                            // CHAINING LOGIC: Set previous end as new start
                             setDrawState(prev => ({ ...prev, startPoint: end, endPoint: end }));
                         }
                     }
@@ -558,10 +439,8 @@
                     const handleKeyDown = (e) => {
                         if (e.key === 'Escape') {
                             if (drawState.active && drawState.startPoint) {
-                                // Cancel current segment, keep tool
                                 setDrawState(prev => ({ ...prev, active: false, startPoint: null, endPoint: null }));
                             } else {
-                                // Exit tool
                                 setDrawState({ active: false, startPoint: null, endPoint: null, type: null });
                                 setMode('select');
                             }
@@ -574,10 +453,8 @@
                 const onMove = (e) => {
                     if (mode === 'draw') {
                         e.stopPropagation();
-                        // Optimization: Only update state if snapped position changed significantly
                         const snappedX = snapToGrid(e.point.x);
                         const snappedZ = snapToGrid(e.point.z);
-                        
                         setDrawState(prev => {
                             if (!prev.endPoint || prev.endPoint.x !== snappedX || prev.endPoint.z !== snappedZ) {
                                 return { ...prev, endPoint: new THREE.Vector3(snappedX, 0, snappedZ) };
@@ -592,9 +469,7 @@
                     if (mode === 'draw') {
                         const snapped = new THREE.Vector3(snapToGrid(e.point.x), 0, snapToGrid(e.point.z));
                         handleDrawClick(snapped);
-                    } else if (selectedId) {
-                        setSelectedId(null);
-                    }
+                    } else if (selectedId) setSelectedId(null);
                 };
 
                 const onTransform = useCallback((id, obj) => {
@@ -610,7 +485,6 @@
 
                 return (
                     <>
-                        {/* Huge Ground Plane for Raycasting */}
                         <mesh 
                             rotation={[-Math.PI/2, 0, 0]} 
                             position={[0, -0.01, 0]} 
@@ -651,11 +525,6 @@
                                     <mesh position={drawState.endPoint} raycast={() => null}>
                                         <sphereGeometry args={[0.1]} />
                                         <meshBasicMaterial color={THEME.selected} opacity={0.5} transparent />
-                                        <Html position={[0, 0.2, 0]} center>
-                                            <div className="text-[9px] bg-black/50 text-white px-1 rounded font-mono pointer-events-none">
-                                                {drawState.endPoint.x.toFixed(1)}, {drawState.endPoint.z.toFixed(1)}
-                                            </div>
-                                        </Html>
                                     </mesh>
                                 )}
                             </>
@@ -675,9 +544,7 @@
                     if (el.id === selectedId) {
                         const newSpecs = { ...el.specs, [key]: value };
                         let newColor = el.color;
-                        if (key === 'material' && MATERIAL_LIBRARY[value]) {
-                            newColor = MATERIAL_LIBRARY[value];
-                        }
+                        if (key === 'material' && MATERIAL_LIBRARY[value]) newColor = MATERIAL_LIBRARY[value];
                         return { ...el, specs: newSpecs, color: newColor };
                     }
                     return el;
@@ -710,39 +577,18 @@
             };
 
             const handleExportCSV = () => {
-                const headers = [
-                    "ID", "Type", "Label", "Layer", "Parent ID",
-                    "Material", "OmniClass", "Fire Rating",
-                    "Dim A (L/W)", "Dim B (H)", "Dim C (Th/D)",
-                    "Auto Qty", "Manual Qty", "Unit",
-                    "Cost Rate ($)", "Cost Ratio", "Total Cost ($)"
-                ];
-
+                const headers = ["ID", "Type", "Label", "Material", "Dims", "Cost"];
                 const rows = elements.map(el => {
-                    const p = el.params;
-                    const s = el.specs;
-                    const dimA = el.type.startsWith('WALL') ? p.length : p.width;
-                    const dimB = p.height;
-                    const dimC = el.type.startsWith('WALL') ? p.thickness : p.depth;
-                    const unit = el.type === 'FURNITURE' ? 'Unit' : 'm³';
-                    const autoQty = getAutoQty(el);
                     const cost = getElementCost(el);
-
-                    return [
-                        el.humanId, el.type, el.label, ELEMENT_DEFS[el.type]?.layer || 'N/A', el.parentId || '-',
-                        s.material, s.omni, s.fireRating,
-                        dimA?.toFixed(2), dimB?.toFixed(2), dimC?.toFixed(2),
-                        autoQty.toFixed(2), s.manualQty || 0, unit,
-                        s.costPerUnit, s.costRatio, cost.toFixed(2)
-                    ].map(val => `"${val}"`).join(",");
+                    const dims = el.type.startsWith('SHELL') ? `${el.params.length.toFixed(2)}x${el.params.height.toFixed(2)}` : 'N/A';
+                    return [`"${el.humanId}"`, `"${el.type}"`, `"${el.label}"`, `"${el.specs.material}"`, `"${dims}"`, `"${cost.toFixed(2)}"`].join(",");
                 });
-
                 const csvContent = [headers.join(","), ...rows].join("\n");
                 const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `forge_cost_schedule_${new Date().toISOString().slice(0,10)}.csv`;
+                a.download = `forge_cost_schedule.csv`;
                 a.click();
             };
 
@@ -753,37 +599,37 @@
             };
 
             return (
-                <div className="w-full h-screen bg-[#fdf5e6] text-[#3e2723] font-mono flex flex-col overflow-hidden relative select-none">
+                <div className="w-full h-screen bg-[#cfd8dc] text-[#263238] mono-font flex flex-col overflow-hidden relative select-none">
                     
-                    {/* TOP HEADER */}
+                    {/* HEADER */}
                     <div className="absolute top-4 left-4 right-4 z-10 flex justify-between pointer-events-none">
                         <div className="flex gap-2 pointer-events-auto">
-                            <button onClick={() => setShowHelp(true)} className="glass-panel w-10 h-10 rounded-full font-bold shadow-lg hover:bg-white/50 transition flex items-center justify-center text-[#3e2723]">
+                            <button onClick={() => setShowHelp(true)} className="glass-panel w-10 h-10 rounded-full font-bold shadow-lg hover:bg-white transition flex items-center justify-center text-[#263238]">
                                 <HelpCircle size={18} />
                             </button>
-                            <button onClick={() => setCameraView(v => v === '2D' ? '3D' : '2D')} className="glass-panel px-4 py-2 rounded-full font-bold shadow-lg hover:bg-white/50 transition flex items-center gap-2">
-                                <ScanLine size={16}/> {cameraView} VIEW
+                            <button onClick={() => setCameraView(v => v === '2D' ? '3D' : '2D')} className="glass-panel px-4 py-2 rounded-full font-bold shadow-lg hover:bg-white transition flex items-center gap-2 text-xs">
+                                <ScanLine size={16}/> {cameraView}
                             </button>
-                            <button onClick={() => setShowImport(true)} className="glass-panel px-4 py-2 rounded-full font-bold shadow-lg hover:bg-white/50 transition flex items-center gap-2 text-blue-800">
-                                <Upload size={16}/> IMPORT DATA
+                            <button onClick={() => setShowImport(true)} className="glass-panel px-4 py-2 rounded-full font-bold shadow-lg hover:bg-white transition flex items-center gap-2 text-xs text-blue-800">
+                                <Upload size={16}/> IMPORT
                             </button>
                         </div>
                         
-                        <div className="border-2 border-[#3e2723] rounded-lg px-6 py-2 bg-[#fdf5e6] shadow-[4px_4px_0px_#3e2723] pointer-events-auto">
-                            <h1 className="text-2xl font-black tracking-widest leading-none text-center">FORGE</h1>
-                            <div className="text-[10px] font-bold text-center tracking-[0.3em]">SIMULATION CALCULATOR | Design + Budget Analysis</div>
+                        <div className="glass-panel px-6 py-2 rounded-lg shadow-lg pointer-events-auto flex flex-col items-center justify-center">
+                            <h1 className="text-xl font-black tracking-widest leading-none">FORGE | SKELETON SHELL</h1>
+                            <div className="text-[10px] font-bold tracking-[0.2em] opacity-60">SYSTEM INTEGRATOR</div>
                         </div>
                         
                         <div className="pointer-events-auto">
                             <div className="glass-panel rounded-xl p-3 shadow-xl flex gap-6 text-xs min-w-[300px]">
                                 <div>
-                                    <div className="font-bold opacity-50 mb-1 flex items-center gap-1"><Activity size={12}/> PROJECT VOLUME</div>
-                                    <div className="text-lg font-bold">{stats.vol.toFixed(2)} m³</div>
+                                    <div className="font-bold opacity-50 mb-1 flex items-center gap-1"><Activity size={12}/> VOL (m³)</div>
+                                    <div className="text-lg font-bold">{stats.vol.toFixed(2)}</div>
                                 </div>
-                                <div className="border-r border-[#3e2723] opacity-20"></div>
+                                <div className="border-r border-[#455a64] opacity-20"></div>
                                 <div>
-                                    <div className="font-bold opacity-50 mb-1 flex items-center gap-1"><DollarSign size={12}/> EST. COST</div>
-                                    <div className="text-lg font-bold text-green-800">${stats.cost.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                                    <div className="font-bold opacity-50 mb-1 flex items-center gap-1"><DollarSign size={12}/> COST ($)</div>
+                                    <div className="text-lg font-bold text-green-800">${stats.cost.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</div>
                                 </div>
                             </div>
                         </div>
@@ -791,63 +637,43 @@
 
                     {/* MODALS */}
                     {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
-                    
-                    {/* IMPORT MODAL */}
                     {showImport && (
                         <div className="absolute inset-0 z-50 bg-black/50 flex items-center justify-center p-8 backdrop-blur-sm">
-                            <div className="bg-[#fdf5e6] border-4 border-[#3e2723] rounded-2xl p-6 w-full max-w-2xl shadow-2xl flex flex-col max-h-full">
-                                <h2 className="text-xl font-black mb-4 flex items-center gap-2"><Zap className="text-blue-600"/> HYPER AUTO EXTRUDE</h2>
-                                
-                                <div className="grid grid-cols-2 gap-4 mb-4">
-                                    <div className="p-4 border-2 border-dashed border-[#3e2723]/30 rounded-xl hover:bg-[#3e2723]/5 transition cursor-pointer flex flex-col items-center justify-center text-center" onClick={() => fileInputRef.current.click()}>
-                                        <input type="file" ref={fileInputRef} className="hidden" accept=".svg,.png,.jpg,.jpeg" onChange={handleFileSelect} />
+                            <div className="glass-panel rounded-2xl p-6 w-full max-w-xl shadow-2xl">
+                                <h2 className="text-lg font-black mb-4">IMPORT DATA</h2>
+                                <div className="flex gap-4 mb-4">
+                                    <button onClick={() => fileInputRef.current.click()} className="flex-1 p-8 border-2 border-dashed border-[#455a64]/30 rounded-xl hover:bg-white/50 flex flex-col items-center">
                                         <FileImage size={32} className="mb-2 opacity-50"/>
                                         <span className="font-bold text-xs">UPLOAD FILE</span>
-                                        <span className="text-[10px] opacity-60">.SVG (Vector) or .PNG/.JPG (Height Map)</span>
-                                    </div>
-                                    <div className="p-4 border border-[#3e2723]/20 rounded-xl bg-white/30 text-xs">
-                                        <strong className="block mb-1">MODE 1: VECTOR (.SVG)</strong>
-                                        <ul className="list-disc pl-4 opacity-70 mb-2">
-                                            <li>Line Stroke Color = 3D Color</li>
-                                            <li>SVG ID = Element ID</li>
-                                        </ul>
-                                    </div>
+                                        <span className="text-[9px] opacity-60">.SVG (Vector) or .JPG (Terrain)</span>
+                                    </button>
+                                    <input type="file" ref={fileInputRef} className="hidden" accept=".svg,.png,.jpg,.jpeg" onChange={handleFileSelect} />
                                 </div>
-
-                                <p className="text-xs mb-2 opacity-70 font-bold">OR PASTE SVG CODE:</p>
-                                <textarea 
-                                    className="flex-1 bg-white border border-[#3e2723] rounded p-4 font-mono text-xs mb-4 resize-none focus:outline-none focus:ring-2 ring-blue-500"
-                                    value={svgInput} onChange={e => setSvgInput(e.target.value)}
-                                />
-                                <div className="flex justify-end gap-2">
-                                    <button onClick={() => setShowImport(false)} className="px-6 py-2 rounded border border-[#3e2723] hover:bg-gray-200">CANCEL</button>
-                                    <button onClick={parseSVG} className="px-6 py-2 rounded bg-[#3e2723] text-white font-bold hover:bg-[#5d4037]">PROCESS VECTOR</button>
-                                </div>
+                                <button onClick={() => setShowImport(false)} className="w-full py-2 rounded border border-[#455a64] hover:bg-gray-200 font-bold text-xs">CLOSE</button>
                             </div>
                         </div>
                     )}
 
-                    {/* MAIN WORKSPACE */}
+                    {/* WORKSPACE */}
                     <div className="flex-1 flex gap-4 p-4 pt-20">
                         {/* TOOLBAR */}
-                        <div className="w-20 glass-panel rounded-2xl flex flex-col items-center py-4 gap-2 shadow-lg z-0">
+                        <div className="w-16 glass-panel rounded-2xl flex flex-col items-center py-4 gap-3 shadow-lg z-0">
                             <ToolBtn icon={MousePointer} active={mode==='select'} onClick={() => setMode('select')} label="SEL" />
-                            <div className="w-8 border-b border-[#3e2723] opacity-20 my-1"></div>
-                            <ToolBtn icon={PenTool} active={mode==='draw' && drawState.type==='WALL'} onClick={()=>{startDrawing('WALL')}} label="WALL" />
-                            <ToolBtn icon={PenTool} active={mode==='draw' && drawState.type==='WALL_WOOD'} onClick={()=>{startDrawing('WALL_WOOD')}} label="WOOD" />
-                            <ToolBtn icon={Box} active={mode==='draw' && drawState.type==='COLUMN'} onClick={()=>{startDrawing('COLUMN')}} label="COL" />
-                            <ToolBtn icon={Layers} active={mode==='draw' && drawState.type==='FURNITURE'} onClick={()=>{startDrawing('FURNITURE')}} label="FURN" />
-                            <div className="w-8 border-b border-[#3e2723] opacity-20 my-1"></div>
+                            <div className="w-8 border-b border-[#455a64] opacity-20"></div>
+                            <ToolBtn icon={Frame} active={mode==='draw' && drawState.type==='SHELL_CONCRETE'} onClick={()=>{startDrawing('SHELL_CONCRETE')}} label="SHELL" />
+                            <ToolBtn icon={Frame} active={mode==='draw' && drawState.type==='SHELL_TIMBER'} onClick={()=>{startDrawing('SHELL_TIMBER')}} label="FRAME" />
+                            <ToolBtn icon={CircleDot} active={mode==='draw' && drawState.type==='STRUCT_NODE'} onClick={()=>{startDrawing('STRUCT_NODE')}} label="NODE" />
+                            <div className="w-8 border-b border-[#455a64] opacity-20"></div>
                             <ToolBtn icon={Axis3d} active={mode==='translate'} onClick={() => setMode('translate')} label="MOV" />
                             <ToolBtn icon={ArrowUpCircle} active={mode==='rotate'} onClick={() => setMode('rotate')} label="ROT" />
                             <div className="mt-auto"><ToolBtn icon={Undo} onClick={()=>{}} label="UNDO" /></div>
                         </div>
 
                         {/* CANVAS */}
-                        <div className="flex-1 glass-panel rounded-3xl overflow-hidden relative shadow-inner bg-[#fdf6e3]">
+                        <div className="flex-1 glass-panel rounded-3xl overflow-hidden relative shadow-inner bg-[#eceff1]">
                             <Canvas shadows dpr={[1, 2]}>
-                                <color attach="background" args={['#fdf6e3']} />
-                                {cameraView === '3D' ? <PerspectiveCamera makeDefault position={[10, 15, 10]} fov={45} /> : <OrthographicCamera makeDefault position={[0, 50, 0]} zoom={30} />}
+                                <color attach="background" args={['#eceff1']} />
+                                {cameraView === '3D' ? <PerspectiveCamera makeDefault position={[12, 16, 12]} fov={40} /> : <OrthographicCamera makeDefault position={[0, 60, 0]} zoom={30} />}
                                 <OrbitControls makeDefault enableRotate={cameraView==='3D'} enableDamping={false} />
                                 <SceneManager 
                                     elements={elements} setElements={setElements}
@@ -861,86 +687,51 @@
 
                         {/* PROPERTIES */}
                         <div className="w-72 glass-panel rounded-2xl flex flex-col shadow-lg overflow-hidden">
-                            <div className="bg-[#3e2723] text-[#fdf5e6] px-4 py-2 font-bold text-sm tracking-widest flex items-center gap-2">
-                                <Settings size={14}/> INTELLIGENT DATA
+                            <div className="bg-[#455a64] text-white px-4 py-2 font-bold text-xs tracking-widest flex items-center gap-2">
+                                <Settings size={12}/> COMPONENT DATA
                             </div>
                             <div className="flex-1 overflow-auto p-4 scrollbar-hide">
                                 {selectedElement ? (
                                     <div className="space-y-4">
-                                        <div className="bg-white/50 p-2 rounded border border-[#3e2723]/20">
+                                        <div className="bg-white/50 p-2 rounded border border-[#455a64]/20">
                                             <div className="text-xs font-bold uppercase tracking-wider">{selectedElement.label}</div>
                                             <div className="text-[10px] opacity-60 font-mono tracking-tighter">{selectedElement.humanId}</div>
-                                            <div className="text-[9px] opacity-40 font-mono">{selectedElement.id.split('-')[0]}...</div>
                                         </div>
 
                                         <Group title="SPECIFICATION" icon={FileText}>
                                             <Field label="OMNICLASS" value={selectedElement.specs.omni} readOnly />
-                                            
-                                            {/* Material Dropdown with Color Logic */}
                                             <div className="flex justify-between items-center text-xs">
                                                 <span className="font-bold opacity-80">MATERIAL</span>
                                                 <select 
                                                     value={selectedElement.specs.material} 
                                                     onChange={(e) => updateSpec('material', e.target.value)}
-                                                    className="w-24 bg-transparent border-b border-[#3e2723] text-right focus:outline-none font-mono text-[10px]"
+                                                    className="w-28 bg-transparent border-b border-[#455a64] text-right focus:outline-none font-mono text-[10px]"
                                                 >
                                                     {Object.keys(MATERIAL_LIBRARY).map(mat => (
                                                         <option key={mat} value={mat}>{mat}</option>
                                                     ))}
                                                 </select>
                                             </div>
-
-                                            <div className="flex justify-between items-center text-xs">
-                                                <span className="font-bold opacity-80">COLOR CODE</span>
-                                                <div className="flex items-center gap-2">
-                                                    <input type="color" value={selectedElement.color || '#cccccc'} onChange={(e) => updateColor(e.target.value)} className="w-4 h-4 rounded border-none cursor-pointer" />
-                                                    <span className="font-mono text-[9px] opacity-60">{selectedElement.color}</span>
-                                                </div>
-                                            </div>
-                                        </Group>
-
-                                        <Group title="RELATIONS" icon={LinkIcon}>
-                                            <div className="flex justify-between items-center text-xs">
-                                                <span className="font-bold opacity-80">PARENT ID</span>
-                                                <input 
-                                                    type="text" 
-                                                    value={selectedElement.parentId || ''} 
-                                                    onChange={e => updateParent(e.target.value)} 
-                                                    placeholder="None"
-                                                    className="w-24 bg-transparent border-b border-[#3e2723] text-right focus:outline-none font-mono text-[10px]"
-                                                />
-                                            </div>
-                                            <div className="text-[9px] opacity-50 mt-1 italic text-right">
-                                                Link to System/Host
-                                            </div>
                                         </Group>
 
                                         <Group title="DIMENSIONS" icon={Ruler}>
-                                            {selectedElement.type.startsWith('WALL') ? (
+                                            {selectedElement.type.startsWith('SHELL') ? (
                                                 <>
                                                     <Field label="LENGTH (m)" value={selectedElement.params.length.toFixed(2)} onChange={v => updateParam('length', v)}/>
                                                     <Field label="HEIGHT (m)" value={selectedElement.params.height} onChange={v => updateParam('height', v)}/>
-                                                </>
-                                            ) : selectedElement.type === 'TOPOGRAPHY' ? (
-                                                <>
-                                                    <Field label="WIDTH (m)" value={selectedElement.params.width} onChange={v => updateParam('width', v)}/>
-                                                    <Field label="HEIGHT (m)" value={selectedElement.params.height} onChange={v => updateParam('height', v)}/>
+                                                    <Field label="THICK (m)" value={selectedElement.params.thickness} onChange={v => updateParam('thickness', v)}/>
                                                 </>
                                             ) : (
-                                                <Field label="WIDTH (m)" value={selectedElement.params.width} onChange={v => updateParam('width', v)}/>
+                                                <>
+                                                    <Field label="HEIGHT (m)" value={selectedElement.params.height} onChange={v => updateParam('height', v)}/>
+                                                    <Field label="WIDTH (m)" value={selectedElement.params.width} onChange={v => updateParam('width', v)}/>
+                                                </>
                                             )}
                                         </Group>
 
-                                        <Group title="MANUAL BOQ & COST" icon={Calculator} hl>
+                                        <Group title="SIM-CAL COST" icon={Calculator} hl>
                                             <LabeledInput label="UNIT RATE ($)" value={selectedElement.specs.costPerUnit} onChange={v => updateSpec('costPerUnit', v)} />
-                                            <LabeledInput label="COST RATIO" value={selectedElement.specs.costRatio} onChange={v => updateSpec('costRatio', v)} />
-                                            <LabeledInput label="MANUAL QTY" value={selectedElement.specs.manualQty} onChange={v => updateSpec('manualQty', v)} />
-                                            
-                                            <div className="text-[9px] opacity-50 text-right mt-1 mb-2">
-                                                Auto Qty: {getAutoQty(selectedElement).toFixed(2)} {selectedElement.type === 'FURNITURE' ? 'Units' : 'm³'}
-                                            </div>
-
-                                            <div className="flex justify-between text-sm font-bold border-t border-[#3e2723]/20 pt-1 mt-1">
+                                            <div className="flex justify-between text-sm font-bold border-t border-[#455a64]/20 pt-1 mt-1">
                                                 <span>TOTAL</span>
                                                 <span className="text-green-700">
                                                     ${getElementCost(selectedElement).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
@@ -949,22 +740,19 @@
                                         </Group>
 
                                         <button onClick={deleteSelected} className="w-full py-2 mt-4 bg-red-100 text-red-800 border border-red-300 rounded hover:bg-red-200 text-xs font-bold flex items-center justify-center gap-2">
-                                            <Trash2 size={12}/> DELETE ELEMENT
+                                            <Trash2 size={12}/> DELETE
                                         </button>
                                     </div>
                                 ) : (
                                     <div className="h-full flex flex-col items-center justify-center opacity-30">
                                         <MousePointer size={32} />
-                                        <p className="text-xs mt-2 text-center font-bold">SELECT OBJECT</p>
+                                        <p className="text-xs mt-2 text-center font-bold">SELECT COMPONENT</p>
                                     </div>
                                 )}
                             </div>
-                            <div className="p-3 border-t border-[#3e2723]/20 bg-[#fdf5e6]">
-                                <button onClick={handleExport} className="w-full py-2 bg-[#3e2723] text-[#fdf5e6] font-bold rounded-full border-2 border-[#3e2723] shadow-lg flex items-center justify-center gap-2 text-xs mb-2 hover:bg-[#5d4037]">
-                                    <Download className="w-3 h-3" /> EXPORT JSON
-                                </button>
-                                <button onClick={handleExportCSV} className="w-full py-2 bg-green-700 text-white font-bold rounded-full border-2 border-green-900 shadow-lg flex items-center justify-center gap-2 text-xs hover:bg-green-600">
-                                    <FileSpreadsheet className="w-3 h-3" /> EXPORT COST SCHEDULE (.CSV)
+                            <div className="p-3 border-t border-[#455a64]/20">
+                                <button onClick={handleExportCSV} className="w-full py-2 bg-green-700 text-white font-bold rounded-md shadow-md flex items-center justify-center gap-2 text-xs hover:bg-green-600 transition">
+                                    <FileSpreadsheet className="w-3 h-3" /> EXPORT SCHEDULE
                                 </button>
                             </div>
                         </div>
@@ -974,14 +762,14 @@
         }
 
         const ToolBtn = ({ icon: Icon, active, onClick, label }) => (
-            <button onClick={onClick} className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center transition-all ${active ? 'bg-[#3e2723] text-white shadow-inner scale-95' : 'hover:bg-[#3e2723]/10'}`}>
-                <Icon size={20} strokeWidth={2.5} />
-                <span className="text-[9px] font-bold mt-0.5">{label}</span>
+            <button onClick={onClick} className={`w-10 h-10 rounded-lg flex flex-col items-center justify-center transition-all ${active ? 'bg-[#455a64] text-white shadow-inner' : 'hover:bg-[#455a64]/10 text-[#455a64]'}`}>
+                <Icon size={18} strokeWidth={2.5} />
+                <span className="text-[8px] font-bold mt-0.5">{label}</span>
             </button>
         );
 
         const Group = ({ title, icon: Icon, children, hl }) => (
-            <div className={`rounded border border-[#3e2723]/30 p-2 ${hl ? 'bg-yellow-50/50' : ''}`}>
+            <div className={`rounded border border-[#455a64]/30 p-2 ${hl ? 'bg-blue-50/50' : ''}`}>
                 <div className="text-[10px] font-bold opacity-60 mb-2 flex items-center gap-1"><Icon size={10}/> {title}</div>
                 <div className="space-y-2">{children}</div>
             </div>
@@ -993,7 +781,7 @@
                 {readOnly ? (
                     <span className="font-mono opacity-60">{value}</span>
                 ) : (
-                    <input type="number" step="0.1" value={value} onChange={e => onChange(e.target.value)} className="w-16 bg-transparent border-b border-[#3e2723] text-right focus:outline-none font-mono"/>
+                    <input type="number" step="0.1" value={value} onChange={e => onChange(e.target.value)} className="w-16 bg-transparent border-b border-[#455a64] text-right focus:outline-none font-mono"/>
                 )}
             </div>
         );
@@ -1001,7 +789,7 @@
         const LabeledInput = ({ label, value, onChange }) => (
             <div className="flex justify-between items-center text-xs">
                 <span className="font-bold opacity-80">{label}</span>
-                <input type="number" step="0.1" value={value} onChange={e => onChange(e.target.value)} className="w-16 bg-transparent border-b border-[#3e2723] text-right focus:outline-none font-mono"/>
+                <input type="number" step="0.1" value={value} onChange={e => onChange(e.target.value)} className="w-16 bg-transparent border-b border-[#455a64] text-right focus:outline-none font-mono"/>
             </div>
         );
 
