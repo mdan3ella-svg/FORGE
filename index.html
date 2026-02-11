@@ -212,60 +212,129 @@
 
         // --- 3. UI HELPER COMPONENTS ---
 
-        const HelpModal = ({ onClose }) => (
-            <div className="absolute inset-0 z-50 bg-black/60 flex items-center justify-center p-8 backdrop-blur-sm">
-                <div className="bg-[#fdf5e6] border-4 border-[#3e2723] rounded-2xl p-6 w-full max-w-2xl shadow-2xl flex flex-col max-h-full overflow-y-auto">
-                    <div className="flex justify-between items-start mb-4">
-                        <h2 className="text-xl font-black flex items-center gap-2 text-[#3e2723]">
-                            <HelpCircle className="text-blue-600" /> WELCOME TO FORGE
-                        </h2>
-                        <button onClick={onClose} className="text-[#3e2723] hover:text-red-600 font-bold">✕</button>
+        const HelpModal = ({ onClose }) => {
+            const [tab, setTab] = useState('GUIDE');
+
+            return (
+                <div className="absolute inset-0 z-50 bg-black/60 flex items-center justify-center p-8 backdrop-blur-sm">
+                    <div className="bg-[#fdf5e6] border-4 border-[#3e2723] rounded-2xl p-6 w-full max-w-2xl shadow-2xl flex flex-col max-h-full overflow-hidden">
+                        <div className="flex justify-between items-start mb-4 shrink-0">
+                            <h2 className="text-xl font-black flex items-center gap-2 text-[#3e2723]">
+                                <HelpCircle className="text-blue-600" /> FORGE INFORMATION
+                            </h2>
+                            <button onClick={onClose} className="text-[#3e2723] hover:text-red-600 font-bold">✕</button>
+                        </div>
+
+                        {/* Tabs */}
+                        <div className="flex gap-4 mb-4 border-b-2 border-[#3e2723]/10 pb-2 shrink-0">
+                            <button 
+                                onClick={() => setTab('GUIDE')}
+                                className={`text-xs font-bold px-3 py-1 rounded-full transition ${tab === 'GUIDE' ? 'bg-[#3e2723] text-[#fdf5e6]' : 'hover:bg-[#3e2723]/10'}`}
+                            >
+                                USER GUIDE
+                            </button>
+                            <button 
+                                onClick={() => setTab('ABOUT')}
+                                className={`text-xs font-bold px-3 py-1 rounded-full transition ${tab === 'ABOUT' ? 'bg-[#3e2723] text-[#fdf5e6]' : 'hover:bg-[#3e2723]/10'}`}
+                            >
+                                ABOUT & TECH SPECS
+                            </button>
+                        </div>
+                        
+                        <div className="overflow-y-auto pr-2 space-y-4 text-xs font-mono text-[#3e2723]">
+                            {tab === 'GUIDE' ? (
+                                <>
+                                    <div className="p-3 bg-white/50 rounded border border-[#3e2723]/20">
+                                        <h3 className="font-bold text-sm mb-1">1. NAVIGATION CONTROLS</h3>
+                                        <ul className="list-disc pl-4 opacity-80 space-y-1">
+                                            <li><strong>Rotate:</strong> Left Click + Drag (3D Mode)</li>
+                                            <li><strong>Pan:</strong> Right Click + Drag</li>
+                                            <li><strong>Zoom:</strong> Scroll Wheel</li>
+                                            <li><strong>View Toggle:</strong> Use buttons in top-left for 2D Plan / 3D Model.</li>
+                                        </ul>
+                                    </div>
+
+                                    <div className="p-3 bg-white/50 rounded border border-[#3e2723]/20">
+                                        <h3 className="font-bold text-sm mb-1">2. CREATION WORKFLOW</h3>
+                                        <ul className="list-disc pl-4 opacity-80 space-y-1">
+                                            <li><strong>Walls:</strong> Select 'WALL' -> Click Start -> Click End. (Auto-chains for continuous walls).</li>
+                                            <li><strong>Columns/Furniture:</strong> Select Tool -> Single Click to place.</li>
+                                            <li><strong>Escape Key:</strong> Press 'ESC' to cancel current segment or exit tool.</li>
+                                        </ul>
+                                    </div>
+
+                                    <div className="p-3 bg-white/50 rounded border border-[#3e2723]/20">
+                                        <h3 className="font-bold text-sm mb-1">3. DATA & ANALYSIS</h3>
+                                        <ul className="list-disc pl-4 opacity-80 space-y-1">
+                                            <li><strong>Select:</strong> Use 'SEL' tool -> Click any object.</li>
+                                            <li><strong>Edit:</strong> Use Right Panel to change Dimensions, Materials, and Parents.</li>
+                                            <li><strong>BoQ:</strong> Adjust 'Manual Qty' or 'Cost Ratio' for precise budgeting.</li>
+                                        </ul>
+                                    </div>
+
+                                    <div className="p-3 bg-white/50 rounded border border-[#3e2723]/20">
+                                        <h3 className="font-bold text-sm mb-1">4. AUTOMATION</h3>
+                                        <ul className="list-disc pl-4 opacity-80 space-y-1">
+                                            <li><strong>Import Data:</strong> Upload .SVG (Vector extrude) or .JPG/PNG (Terrain map).</li>
+                                            <li><strong>Export:</strong> Download JSON data or Cost Schedule (.CSV).</li>
+                                        </ul>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="p-4 bg-blue-50/50 rounded border border-blue-200">
+                                        <h3 className="font-bold text-sm mb-2 text-blue-900">WHAT IS FORGE?</h3>
+                                        <p className="mb-2 leading-relaxed">
+                                            FORGE | SIM-CAL AUDITOR is a browser-based <strong>BIM (Building Information Modeling) Kernel</strong> designed to bridge the gap between initial sketching and data-rich analysis.
+                                        </p>
+                                        <p className="leading-relaxed">
+                                            It allows architects, developers, and project managers to move from "dumb lines" to "intelligent systems" instantly, bringing cost awareness to the very first phase of design.
+                                        </p>
+                                    </div>
+
+                                    <div className="p-3 bg-white/50 rounded border border-[#3e2723]/20">
+                                        <h3 className="font-bold text-sm mb-1">TECHNICAL CAPABILITIES</h3>
+                                        <ul className="list-disc pl-4 opacity-80 space-y-2">
+                                            <li>
+                                                <strong>Hyper-Extrude Engine:</strong> A vector parsing algorithm that converts standard SVG paths into parametric 3D meshes (Walls, Columns) while preserving layer metadata.
+                                            </li>
+                                            <li>
+                                                <strong>SIM-CAL Core:</strong> A real-time arithmetic engine that binds geometric properties (Volume, Area) to financial variables (Unit Cost, Waste Ratio) for instant HUD feedback.
+                                            </li>
+                                            <li>
+                                                <strong>Terrain Synthesis:</strong> Uses pixel-brightness interpretation to generate 3D displacement maps from standard .JPG/.PNG images for site analysis.
+                                            </li>
+                                            <li>
+                                                <strong>Data Interoperability:</strong> Built on a JSON state architecture allowing for seamless export to CSV (Excel) and open data formats.
+                                            </li>
+                                        </ul>
+                                    </div>
+
+                                    <div className="p-3 bg-white/50 rounded border border-[#3e2723]/20">
+                                        <h3 className="font-bold text-sm mb-1">USE CASE STUDY: RAPID FEASIBILITY</h3>
+                                        <div className="pl-2 border-l-2 border-[#3e2723]/20">
+                                            <p className="mb-1"><strong>Scenario:</strong> A developer needs to validate the budget for a 2000m² mixed-use site before commissioning a full team.</p>
+                                            <p className="mb-1"><strong>Process:</strong></p>
+                                            <ol className="list-decimal pl-5 mb-1 opacity-80">
+                                                <li>Upload Site Plan SVG to FORGE.</li>
+                                                <li>Auto-extrude massing walls.</li>
+                                                <li>Import satellite height-map for terrain context.</li>
+                                                <li>Adjust 'Cost Ratio' to 1.2 (20% overhead).</li>
+                                            </ol>
+                                            <p><strong>Outcome:</strong> A precise Bill of Quantities (BoQ) and Visual Model generated in &lt;15 minutes.</p>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        <button onClick={onClose} className="mt-6 w-full py-3 bg-[#3e2723] text-[#fdf5e6] font-bold rounded-xl hover:bg-[#5d4037] transition shrink-0">
+                            RETURN TO EDITOR
+                        </button>
                     </div>
-                    
-                    <div className="space-y-4 text-xs font-mono text-[#3e2723]">
-                        <div className="p-3 bg-white/50 rounded border border-[#3e2723]/20">
-                            <h3 className="font-bold text-sm mb-1">1. NAVIGATION CONTROLS</h3>
-                            <ul className="list-disc pl-4 opacity-80 space-y-1">
-                                <li><strong>Rotate:</strong> Left Click + Drag (3D Mode)</li>
-                                <li><strong>Pan:</strong> Right Click + Drag</li>
-                                <li><strong>Zoom:</strong> Scroll Wheel</li>
-                                <li><strong>View Toggle:</strong> Use buttons in top-left for 2D Plan / 3D Model.</li>
-                            </ul>
-                        </div>
-
-                        <div className="p-3 bg-white/50 rounded border border-[#3e2723]/20">
-                            <h3 className="font-bold text-sm mb-1">2. CREATION WORKFLOW</h3>
-                            <ul className="list-disc pl-4 opacity-80 space-y-1">
-                                <li><strong>Walls:</strong> Select 'WALL' -> Click Start -> Click End. (Auto-chains for continuous walls).</li>
-                                <li><strong>Columns/Furniture:</strong> Select Tool -> Single Click to place.</li>
-                                <li><strong>Escape Key:</strong> Press 'ESC' to cancel current segment or exit tool.</li>
-                            </ul>
-                        </div>
-
-                        <div className="p-3 bg-white/50 rounded border border-[#3e2723]/20">
-                            <h3 className="font-bold text-sm mb-1">3. DATA & ANALYSIS</h3>
-                            <ul className="list-disc pl-4 opacity-80 space-y-1">
-                                <li><strong>Select:</strong> Use 'SEL' tool -> Click any object.</li>
-                                <li><strong>Edit:</strong> Use Right Panel to change Dimensions, Materials, and Parents.</li>
-                                <li><strong>BoQ:</strong> Adjust 'Manual Qty' or 'Cost Ratio' for precise budgeting.</li>
-                            </ul>
-                        </div>
-
-                        <div className="p-3 bg-white/50 rounded border border-[#3e2723]/20">
-                            <h3 className="font-bold text-sm mb-1">4. AUTOMATION</h3>
-                            <ul className="list-disc pl-4 opacity-80 space-y-1">
-                                <li><strong>Import Data:</strong> Upload .SVG (Vector extrude) or .JPG/PNG (Terrain map).</li>
-                                <li><strong>Export:</strong> Download JSON data for external use.</li>
-                            </ul>
-                        </div>
-                    </div>
-
-                    <button onClick={onClose} className="mt-6 w-full py-3 bg-[#3e2723] text-[#fdf5e6] font-bold rounded-xl hover:bg-[#5d4037] transition">
-                        GET STARTED
-                    </button>
                 </div>
-            </div>
-        );
+            );
+        };
 
         // --- 4. LOGIC & STATE ---
 
